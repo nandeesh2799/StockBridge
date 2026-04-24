@@ -73,7 +73,8 @@ cd StockBridge
 cd back
 npm install
 
-Create a .env file in /back:
+##Create a .env file in /back:
+
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key
@@ -81,3 +82,7 @@ JWT_SECRET=your_secret_key
 IMAGEKIT_PUBLIC_KEY=your_key
 IMAGEKIT_PRIVATE_KEY=your_key
 IMAGEKIT_URL_ENDPOINT=your_url
+
+##Start backend:
+
+npm run dev
