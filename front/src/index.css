@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --bg-main: #09090b;
+  --bg-card: #111113;
+  --border-tech: rgba(100, 116, 139, 0.28);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background-color: #09090b !important;
+  color: #ffffff !important;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-image:
+    radial-gradient(circle at 12% 12%, rgba(79, 70, 229, 0.18), transparent 36%),
+    radial-gradient(circle at 88% 6%, rgba(14, 165, 233, 0.1), transparent 30%),
+    linear-gradient(180deg, #08080a 0%, #09090b 100%);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+
+@font-face {
+  font-family: "MyFont";
+  src: url("./assets/fonts/SF-Pro-Display-Light.otf") format("opentype");
+}
+
+* {
+  font-family: "MyFont", sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.panel-tech {
+  background: linear-gradient(
+    135deg,
+    rgba(17, 17, 19, 0.98) 0%,
+    rgba(12, 12, 14, 0.98) 100%
+  );
+  border: 1px solid var(--border-tech);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
