@@ -86,3 +86,12 @@ IMAGEKIT_URL_ENDPOINT=your_url
 ##Start backend:
 
 npm run dev
+
+##Setup Frontend
+
+cd ../front
+npm install
+npm run dev
+```
+### Open in browser
+Visit: http://localhost:5173
