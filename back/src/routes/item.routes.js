@@ -14,7 +14,7 @@ router.use(protect);
 
 router.get("/stats", getInventoryStats);
 
-router.route("/").get(getItems).post(authorize("owner", "manager"), addItem); // Cashier can't add items
+router.route("/").get(getItems).post(authorize("owner", "manager", "cashier"), addItem);
 
 router
   .route("/:id")

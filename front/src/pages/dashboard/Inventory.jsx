@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toast } from "sonner";
 import API from "../../api/axiosInstance";
@@ -13,6 +13,10 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Zap,
+  Camera,
+  Maximize,
+  X,
 } from "lucide-react";
 
 const Inventory = () => {
@@ -32,8 +36,24 @@ const Inventory = () => {
     lowStockThreshold: "",
   });
 
+  const [barcodeMode, setBarcodeMode] = useState(false);
+  const [pendingBarcodeLookup, setPendingBarcodeLookup] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+
+  const scannerInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const barcodeDetectorRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const cameraAutoScanIntervalRef = useRef(null);
+  const cameraScanBusyRef = useRef(false);
+  const lastCameraCodeRef = useRef({ value: "", at: 0 });
+  const imageInputRef = useRef(null);
+  const cameraCanvasRef = useRef(null);
+
   const [formData, setFormData] = useState({
     name: "",
+    barcode: "",
     sellingPrice: "",
     unitType: "piece",
     lowStockThreshold: 5,
@@ -43,6 +63,304 @@ const Inventory = () => {
     batchQuantity: "",
     batchExpiryDate: "",
   });
+
+  useEffect(() => {
+    if (!barcodeMode || showCameraModal || isDrawerOpen) return;
+    const interval = setInterval(() => {
+      if (document.activeElement?.tagName !== "INPUT") {
+        scannerInputRef.current?.focus();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [barcodeMode, isDrawerOpen, showCameraModal]);
+
+  const normalizeBarcode = (value = "") => value.trim();
+
+  const normalizeTagValue = (value = "") =>
+    value
+      .replace(/^en:/i, "")
+      .replace(/[-_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const inferUnit = (quantityText = "") => {
+    const text = (quantityText || "").toLowerCase();
+    if (text.includes("kg") || text.includes("g")) return "kg";
+    if (text.includes("ml") || text.includes("l")) return "litre";
+    return "piece";
+  };
+
+  const estimatePricesFromLocalInventory = (name = "") => {
+    const nameTokens = (name || "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((token) => token.length > 2)
+      .slice(0, 3);
+
+    const candidates = items.filter((entry) => {
+      const entryName = (entry.name || "").toLowerCase();
+      return (
+        nameTokens.length > 0 &&
+        nameTokens.some((token) => entryName.includes(token))
+      );
+    });
+
+    if (!candidates.length) return { sellingPrice: "", purchasePrice: "" };
+    const priceList = candidates
+      .map((entry) => ({
+        selling: Number(entry?.batches?.[0]?.sellingPrice || 0),
+        purchase: Number(entry?.batches?.[0]?.purchasePrice || 0),
+      }))
+      .filter((entry) => entry.selling > 0);
+
+    if (!priceList.length) return { sellingPrice: "", purchasePrice: "" };
+
+    const avgSelling =
+      priceList.reduce((sum, entry) => sum + entry.selling, 0) /
+      priceList.length;
+    const avgPurchase =
+      priceList.reduce((sum, entry) => sum + (entry.purchase || 0), 0) /
+      priceList.length;
+
+    return {
+      sellingPrice: avgSelling > 0 ? Math.round(avgSelling) : "",
+      purchasePrice: avgPurchase > 0 ? Math.round(avgPurchase) : "",
+    };
+  };
+
+  const mapOpenFoodFactsDetails = (barcode, product = {}) => {
+    const p = product.product || {};
+    const name = p.product_name || p.generic_name || "";
+    const quantityText = p.quantity || "";
+    const prices = estimatePricesFromLocalInventory(name);
+
+    // Try to extract price from labels or names if present (crowdsourced data)
+    let extractedPrice = "";
+    const priceMatch = name.match(/MRP[:\s]*(\d+)/i) || (p.labels || "").match(/MRP[:\s]*(\d+)/i);
+    if (priceMatch) extractedPrice = priceMatch[1];
+
+    return {
+      barcode,
+      name: name,
+      sellingPrice: extractedPrice || prices.sellingPrice,
+      unitType: inferUnit(quantityText),
+      lowStockThreshold: 5,
+      taxPercent: 0,
+      hsn: "",
+      batchCostPrice: prices.purchasePrice || (extractedPrice ? Math.round(extractedPrice * 0.8) : ""),
+      batchQuantity: "",
+      batchExpiryDate: "",
+    };
+  };
+
+  const fetchProductFromAllSources = async (barcode) => {
+    const sources = [
+      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
+      `https://world.openproductsfacts.org/api/v0/product/${barcode}.json`,
+      `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`,
+    ];
+
+    for (const url of sources) {
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(id);
+        const data = await res.json();
+        if (data && data.status === 1 && data.product) {
+          return { product: data.product, source: url.split(".")[1] };
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+    return null;
+  };
+
+  async function handleScan(rawBarcode) {
+    const barcode = normalizeBarcode(rawBarcode);
+    if (!barcode) return;
+
+    const found = items.find((i) => i.barcode === barcode);
+    if (found) {
+      toast.info(`Found existing item: ${found.name}`);
+      openEditDrawer(found);
+      return;
+    }
+
+    setPendingBarcodeLookup(true);
+    try {
+      const result = await fetchProductFromAllSources(barcode);
+      if (result) {
+        const details = mapOpenFoodFactsDetails(barcode, result);
+        setFormData(details);
+        toast.success(`Product identified via ${result.source}!`);
+        setIsDrawerOpen(true);
+      } else {
+        setFormData((prev) => ({ ...prev, barcode }));
+        setIsDrawerOpen(true);
+      }
+    } catch {
+      setFormData((prev) => ({ ...prev, barcode }));
+      setIsDrawerOpen(true);
+    } finally {
+      setPendingBarcodeLookup(false);
+    }
+  }
+
+  const handleScannerInputKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleScan(e.target.value);
+      e.target.value = "";
+    }
+  };
+
+  const detectBarcodeFromSource = async (source) => {
+    if ("BarcodeDetector" in window) {
+      if (!barcodeDetectorRef.current) {
+        barcodeDetectorRef.current = new window.BarcodeDetector({
+          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "qr_code"],
+        });
+      }
+      const detected = await barcodeDetectorRef.current.detect(source);
+      return detected[0]?.rawValue;
+    }
+    return null;
+  };
+
+  const decodeBarcodeAdvanced = async (sourceCanvas) => {
+    try {
+      const variant = await createImageBitmap(sourceCanvas);
+      return await detectBarcodeFromSource(variant);
+    } catch {
+      return null;
+    }
+  };
+
+  const detectBarcodeFromVideoFrame = async () => {
+    if (!videoRef.current) return null;
+    if (!cameraCanvasRef.current) {
+      cameraCanvasRef.current = document.createElement("canvas");
+    }
+    const canvas = cameraCanvasRef.current;
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(videoRef.current, 0, 0);
+    return decodeBarcodeAdvanced(canvas);
+  };
+
+  const stopCameraStream = () => {
+    if (cameraAutoScanIntervalRef.current) {
+      clearInterval(cameraAutoScanIntervalRef.current);
+      cameraAutoScanIntervalRef.current = null;
+    }
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!showCameraModal || isCameraStarting) return;
+    if (!videoRef.current) return;
+
+    cameraAutoScanIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current || cameraScanBusyRef.current) return;
+      if (videoRef.current.readyState < 2) return;
+
+      cameraScanBusyRef.current = true;
+      try {
+        const value = await detectBarcodeFromVideoFrame();
+        if (!value) return;
+
+        const now = Date.now();
+        if (
+          lastCameraCodeRef.current.value === value &&
+          now - lastCameraCodeRef.current.at < 1500
+        ) {
+          return;
+        }
+        lastCameraCodeRef.current = { value, at: now };
+
+        closeCameraScan();
+        await handleScan(value);
+      } catch {
+        // Ignore transient detector errors
+      } finally {
+        cameraScanBusyRef.current = false;
+      }
+    }, 250);
+
+    return () => {
+      if (cameraAutoScanIntervalRef.current) {
+        clearInterval(cameraAutoScanIntervalRef.current);
+        cameraAutoScanIntervalRef.current = null;
+      }
+    };
+  }, [showCameraModal, isCameraStarting]);
+
+  const startCameraScan = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("Camera access not supported.");
+      return;
+    }
+    setShowCameraModal(true);
+    setIsCameraStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch {
+      setShowCameraModal(false);
+      toast.error("Unable to access camera.");
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const closeCameraScan = () => {
+    stopCameraStream();
+    cameraScanBusyRef.current = false;
+    setShowCameraModal(false);
+  };
+
+  const handleImageFileScan = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      const imageBitmap = await createImageBitmap(file);
+      if (!cameraCanvasRef.current) {
+        cameraCanvasRef.current = document.createElement("canvas");
+      }
+      const canvas = cameraCanvasRef.current;
+      canvas.width = imageBitmap.width;
+      canvas.height = imageBitmap.height;
+      const context = canvas.getContext("2d");
+      context.drawImage(imageBitmap, 0, 0);
+
+      const value = await decodeBarcodeAdvanced(canvas);
+      if (!value) {
+        toast.error("No barcode detected.");
+        return;
+      }
+      await handleScan(value);
+    } catch {
+      toast.error("Error scanning image.");
+    }
+  };
 
   const getTotalStock = (item) =>
     item.batches?.reduce((sum, b) => sum + (b.quantity || 0), 0) || 0;
@@ -100,6 +418,7 @@ const Inventory = () => {
     setIsDrawerOpen(false);
     setFormData({
       name: "",
+      barcode: "",
       sellingPrice: "",
       unitType: "piece",
       lowStockThreshold: 5,
@@ -116,6 +435,7 @@ const Inventory = () => {
     const mainBatch = item.batches?.[0] || {};
     setFormData({
       name: item.name,
+      barcode: item.barcode || "",
       sellingPrice: mainBatch.sellingPrice || "",
       unitType: item.unit || "piece",
       lowStockThreshold: item.alertQuantity || 5,
@@ -133,6 +453,7 @@ const Inventory = () => {
   const handleSaveItem = async () => {
     if (
       !formData.name ||
+      !formData.barcode ||
       !formData.sellingPrice ||
       !formData.batchCostPrice ||
       !formData.batchQuantity
@@ -143,6 +464,7 @@ const Inventory = () => {
     setIsSubmitting(true);
     const payload = {
       name: formData.name,
+      barcode: formData.barcode.trim(),
       unit: formData.unitType,
       alertQuantity: Number(formData.lowStockThreshold),
       taxPercent: Number(formData.taxPercent),
@@ -293,6 +615,17 @@ const Inventory = () => {
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <button
+            onClick={() => {
+              setBarcodeMode(!barcodeMode);
+              toast.info(
+                barcodeMode ? "Scanner OFF" : "Scanner ON — scan any barcode!",
+              );
+            }}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${barcodeMode ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-slate-800 text-slate-400 border border-transparent"}`}
+          >
+            <Zap size={16} /> {barcodeMode ? "Scanner ON" : "Enable Scanner"}
+          </button>
+          <button
             onClick={() => setShowBulkPanel(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-800 transition-colors"
           >
@@ -308,35 +641,85 @@ const Inventory = () => {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            size={18}
-          />
-          <input
-            type="text"
-            placeholder="Search Items"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500 transition-colors text-white shadow-sm"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={18}
+            />
+            <input
+              type="text"
+              placeholder="Search Items"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500 transition-colors text-white shadow-sm"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full sm:w-48 appearance-none pl-4 pr-10 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-bold text-slate-300 focus:outline-none cursor-pointer"
+            >
+              <option value="recent">Recently Added</option>
+              <option value="low_stock">Low Stock First</option>
+              <option value="high_value">High Value First</option>
+            </select>
+            <ArrowUpDown
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              size={14}
+            />
+          </div>
         </div>
-        <div className="relative">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-full sm:w-48 appearance-none pl-4 pr-10 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-bold text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="recent">Recently Added</option>
-            <option value="low_stock">Low Stock First</option>
-            <option value="high_value">High Value First</option>
-          </select>
-          <ArrowUpDown
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            size={14}
-          />
-        </div>
+
+        {barcodeMode && (
+          <div className="rounded-xl p-4 bg-[#111113] border border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+            <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-2">
+              Background Scanner Active
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                ref={scannerInputRef}
+                type="text"
+                onKeyDown={handleScannerInputKeyDown}
+                onBlur={() => {
+                  if (!isDrawerOpen && !showCameraModal) {
+                    scannerInputRef.current?.focus();
+                  }
+                }}
+                placeholder="Scan barcode and press Enter"
+                className="flex-1 px-4 py-2 bg-[#09090b] border border-slate-700 rounded-lg text-sm outline-none focus:border-indigo-500 text-white"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={startCameraScan}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-700"
+                >
+                  <Camera size={14} /> Camera
+                </button>
+                <button
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-700"
+                >
+                  <Maximize size={14} /> From Image
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileScan}
+                  className="hidden"
+                />
+              </div>
+            </div>
+            {pendingBarcodeLookup && (
+              <p className="mt-2 text-xs text-amber-400 font-bold animate-pulse">
+                Fetching product details...
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -436,6 +819,30 @@ const Inventory = () => {
                   name="name"
                   placeholder="e.g. Maggi"
                   value={formData.name}
+                  onChange={handleChange}
+                  className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase block tracking-wider">
+                    Barcode
+                  </label>
+                  {formData.barcode && (
+                    <a
+                      href={`https://www.google.com/search?q=${formData.barcode}+price+india`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-indigo-400 font-bold hover:underline"
+                    >
+                      Search Price Online
+                    </a>
+                  )}
+                </div>
+                <input
+                  name="barcode"
+                  placeholder="Scan or type barcode"
+                  value={formData.barcode}
                   onChange={handleChange}
                   className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500"
                 />
@@ -737,6 +1144,43 @@ const Inventory = () => {
               >
                 {isSubmitting ? "Applying..." : "Apply Bulk Update"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCameraModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="relative w-full max-w-xl aspect-video bg-black rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+            {isCameraStarting && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-white">
+                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-bold animate-pulse">
+                  Starting camera...
+                </p>
+              </div>
+            )}
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+            />
+            <div className="absolute inset-0 pointer-events-none border-[2px] border-indigo-500/30 m-8 rounded-2xl flex items-center justify-center">
+              <div className="w-full h-0.5 bg-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)] animate-scan" />
+            </div>
+            <div className="absolute top-4 right-4 flex gap-2">
+              <button
+                onClick={closeCameraScan}
+                className="p-3 bg-slate-900/80 text-white rounded-full hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 backdrop-blur-sm">
+              <p className="text-[10px] font-black text-white uppercase tracking-widest text-center">
+                Align barcode within frame
+              </p>
             </div>
           </div>
         </div>

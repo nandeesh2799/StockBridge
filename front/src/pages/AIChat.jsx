@@ -1,12 +1,29 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import { 
+  Send, 
+  Bot, 
+  User, 
+  Sparkles, 
+  Trash2, 
+  ChevronRight, 
+  TrendingUp, 
+  AlertTriangle, 
+  BarChart3,
+  Copy,
+  Check
+} from "lucide-react";
+import { toast } from "sonner";
 import API from "../api/axiosInstance";
 
 export default function AIChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
   const { sales = [], items = [], shopProfile = {} } = useOutletContext();
+  const scrollRef = useRef(null);
 
   const aiContext = useMemo(() => {
     const now = new Date();
@@ -29,126 +46,230 @@ export default function AIChat() {
     };
   }, [sales, items, shopProfile.shopName]);
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
 
-    const newMessages = [...messages, { role: "user", text: input }];
-    setMessages(newMessages);
+  const sendMessage = async (textOverride) => {
+    const textToSend = textOverride || input;
+    if (!textToSend.trim() || loading) return;
+
+    const userMsg = { id: Date.now(), role: "user", text: textToSend };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
     setLoading(true);
 
     try {
       const contextualPrompt = `
+Context:
 Shop: ${aiContext.shopName}
-Today sales count: ${aiContext.todaySalesCount}
+Today sales: ${aiContext.todaySalesCount}
 Today revenue: ₹${aiContext.todayRevenue}
 Today profit: ₹${aiContext.todayProfit}
-Total inventory items: ${aiContext.itemCount}
+Total items in stock: ${aiContext.itemCount}
 
-Question: ${input}
+User Question: ${textToSend}
+
+Instructions: Provide a concise, professional, and data-driven response. Use markdown (bold, lists, etc.) where appropriate. Focus strictly on the shop's data.
 `;
       const res = await API.post("/ai/chat", {
         prompt: contextualPrompt,
       });
-      const data = res.data;
 
-      setMessages([
-        ...newMessages,
-        { role: "ai", text: data.data || "No response" },
-      ]);
+      const aiMsg = { 
+        id: Date.now() + 1, 
+        role: "ai", 
+        text: res.data.data || "I couldn't generate a response." 
+      };
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (_err) {
-      setMessages([
-        ...newMessages,
+      setMessages((prev) => [
+        ...prev,
         {
+          id: Date.now() + 1,
           role: "ai",
-          text: "I could not process that. Please ask a shop-specific question and try again.",
+          text: "⚠️ **Connection Error**: I'm having trouble reaching the analytics server. Please check your internet or try again later.",
         },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    setInput("");
   };
 
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast.success("Copied to clipboard");
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    toast.info("Conversation cleared");
+  };
+
+  const suggestions = [
+    { label: "Today's Summary", prompt: "Give me a summary of today's profit and revenue.", icon: BarChart3 },
+    { label: "Top Products", prompt: "Which products are performing best this week?", icon: TrendingUp },
+    { label: "Inventory Health", prompt: "Tell me about low stock items and what I should reorder.", icon: AlertTriangle },
+  ];
+
   return (
-    <div className="h-full w-full flex flex-col panel-tech rounded-2xl overflow-hidden text-white">
+    <div className="h-[calc(100vh-120px)] w-full flex flex-col bg-[#09090b] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative">
+
+      {/* Dynamic Background Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-indigo-600/10 blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🤖</span>
-          <h1 className="font-semibold">StockBridge AI Assistant</h1>
+      <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#111113]/50 backdrop-blur-md z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-600/20 rounded-xl border border-indigo-500/30">
+            <Sparkles className="text-indigo-400" size={20} />
+          </div>
+          <div>
+            <h1 className="font-black text-white tracking-tight">StockBridge AI</h1>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Advanced Analysis Active</p>
+            </div>
+          </div>
         </div>
-        <span className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
-          Shop-only answers
-        </span>
+        <button 
+          onClick={clearChat}
+          className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+          title="Clear Conversation"
+        >
+          <Trash2 size={18} />
+        </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
+      {/* Messages Area */}
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar"
+      >
         {messages.length === 0 && (
-          <div className="text-slate-400 text-center mt-10">
-            Ask about sales, inventory, profit, and trends for your shop.
+          <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto animate-in fade-in zoom-in duration-500">
+            <div className="w-16 h-16 bg-slate-800/50 rounded-3xl flex items-center justify-center mb-6 border border-slate-700/50">
+              <Bot className="text-slate-400" size={32} />
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">How can I help you?</h3>
+            <p className="text-sm text-slate-400 font-medium leading-relaxed mb-8">
+              I can analyze your sales, monitor inventory levels, and suggest profit-maximizing strategies.
+            </p>
+            <div className="grid gap-3 w-full">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(s.prompt)}
+                  className="flex items-center justify-between p-4 bg-slate-800/30 border border-slate-800 rounded-2xl hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <s.icon size={18} className="text-indigo-400" />
+                    <span className="text-sm font-bold text-slate-300 group-hover:text-white">{s.label}</span>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {messages.map((msg, index) => (
+        {messages.map((msg) => (
           <div
-            key={index}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
+            key={msg.id}
+            className={`flex items-start gap-4 animate-in slide-in-from-bottom-2 duration-300 ${
+              msg.role === "user" ? "flex-row-reverse" : "flex-row"
             }`}
           >
-            <div
-              className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-indigo-600"
-                  : "bg-[#09090b] border border-slate-700"
-              }`}
-            >
-              {msg.text}
+            <div className={`p-2 rounded-xl border shrink-0 ${
+              msg.role === "user" 
+                ? "bg-indigo-600 border-indigo-500 shadow-lg shadow-indigo-600/20" 
+                : "bg-slate-800 border-slate-700"
+            }`}>
+              {msg.role === "user" ? <User size={16} /> : <Bot size={16} className="text-indigo-400" />}
+            </div>
+
+            <div className={`group relative max-w-[85%] sm:max-w-[75%] px-5 py-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+              msg.role === "user"
+                ? "bg-indigo-600 text-white rounded-tr-none"
+                : "bg-[#111113] border border-slate-800 text-slate-200 rounded-tl-none"
+            }`}>
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown>{msg.text}</ReactMarkdown>
+              </div>
+
+              {msg.role === "ai" && (
+                <button 
+                  onClick={() => copyToClipboard(msg.text, msg.id)}
+                  className="absolute -right-10 top-2 p-1.5 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-indigo-400 transition-all"
+                >
+                  {copiedId === msg.id ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
             </div>
           </div>
         ))}
 
-        {/* Typing Animation */}
         {loading && (
-          <div className="text-slate-400 text-sm">AI is thinking...</div>
+          <div className="flex items-start gap-4">
+            <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 shrink-0">
+              <Bot size={16} className="text-indigo-400" />
+            </div>
+            <div className="bg-[#111113] border border-slate-800 px-5 py-4 rounded-2xl rounded-tl-none">
+              <div className="flex gap-1.5">
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Suggestions */}
-      <div className="px-4 pb-2 flex gap-2 overflow-x-auto">
-        {[
-          "Give today's profit and revenue summary.",
-          "Which products are top-selling this week?",
-          "Show low stock items and reorder advice.",
-        ].map((q, i) => (
-          <button
-            key={i}
-            onClick={() => setInput(q)}
-            className="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full hover:bg-slate-700"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      {/* Bottom Suggestions Panel */}
+      {messages.length > 0 && !loading && (
+        <div className="px-6 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => sendMessage(s.prompt)}
+              className="whitespace-nowrap flex items-center gap-2 px-4 py-2 bg-slate-800/40 border border-slate-800 rounded-xl text-[11px] font-black text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-700 transition-all"
+            >
+              <s.icon size={12} className="text-indigo-500" />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Input */}
-      <div className="p-4 border-t border-slate-800 flex gap-2">
-        <input
-          className="flex-1 p-2.5 rounded-lg bg-[#09090b] border border-slate-700 focus:outline-none focus:border-indigo-500"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your shop performance..."
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading}
-          className="bg-indigo-600 px-4 rounded-lg hover:bg-indigo-700 disabled:opacity-60"
+      {/* Input Section */}
+      <div className="p-6 border-t border-slate-800 bg-[#111113]/50 backdrop-blur-md">
+        <form 
+          onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+          className="flex gap-3"
         >
-          Send
-        </button>
+          <div className="relative flex-1 group">
+            <input
+              className="w-full pl-4 pr-4 py-3.5 rounded-2xl bg-[#09090b] border border-slate-800 text-white text-sm font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all placeholder:text-slate-600"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your question about shop performance..."
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="bg-indigo-600 p-3.5 rounded-2xl text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20 active:scale-95 transition-all shrink-0"
+          >
+            <Send size={20} />
+          </button>
+        </form>
+        <p className="text-[10px] text-center text-slate-500 font-bold uppercase tracking-widest mt-4">
+          Powered by StockBridge Analytics Engine
+        </p>
       </div>
     </div>
   );

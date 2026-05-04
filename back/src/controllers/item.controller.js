@@ -6,12 +6,26 @@ import Expense from "../models/Expense.js";
 // @route   POST /api/v1/items
 export const addItem = async (req, res) => {
   try {
-    const { name, category, unit, batches, alertQuantity, taxPercent, hsn } =
+    const { name, category, unit, batches, alertQuantity, taxPercent, hsn, barcode } =
       req.body;
 
-    const item = await Item.create({
+    const cleanBarcode = (barcode || "").trim();
+    if (!cleanBarcode) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Barcode is required." });
+    }
 
-      
+    const exists = await Item.findOne({ barcode: cleanBarcode });
+    if (exists) {
+      return res.status(200).json({
+        success: true,
+        data: exists,
+        message: "Item already exists for this barcode.",
+      });
+    }
+
+    const item = await Item.create({
       shop: req.shop.id,
       name,
       category,
@@ -20,8 +34,8 @@ export const addItem = async (req, res) => {
       alertQuantity,
       taxPercent: taxPercent || 0,
       hsn: hsn || "",
+      barcode: cleanBarcode,
     });
-    
 
     cache.invalidate(`items:${req.shop.id}`);
 

@@ -18,6 +18,13 @@ const itemSchema = new mongoose.Schema(
 
     taxPercent: { type: Number, default: 0 },
     hsn: { type: String, default: "" },
+    barcode: {
+      type: String,
+      unique: true,
+      index: true,
+      sparse: true,
+      trim: true,
+    },
 
     batches: [
       {
