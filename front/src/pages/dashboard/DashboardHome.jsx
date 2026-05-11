@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   AreaChart,
   Area,
@@ -16,6 +17,7 @@ import {
   Package,
   Sparkles,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 import API from "../../api/axiosInstance";
 
@@ -81,6 +83,8 @@ const AiInsightText = ({ text, isError }) => {
 };
 
 const DashboardHome = () => {
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { items, sales, customers } = useOutletContext();
 
   const [dashStats, setDashStats] = useState(null);
@@ -104,7 +108,7 @@ const DashboardHome = () => {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const label = d.toLocaleDateString("en-IN", { weekday: "short" });
+      const label = d.toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language, { weekday: "short" });
       const dayStart = new Date(d);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(d);
@@ -152,6 +156,15 @@ const DashboardHome = () => {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
   })();
+
+  const remindersDue = customers
+    .filter((c) => {
+      if (!c.nextReminderDate || c.totalCredit <= 0) return false;
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      return new Date(c.nextReminderDate) <= today;
+    })
+    .sort((a, b) => b.totalCredit - a.totalCredit);
 
   const dueCustomers = customers
     .filter((c) => c.totalCredit > 0)
@@ -210,14 +223,9 @@ ${JSON.stringify(summary, null, 2)}`;
       console.error("AI Insight Fetch Error:", error);
       setAiError(true);
       if (error?.response?.status === 429) {
-        setAiInsight(
-          "AI quota exceeded. Please try again in a few minutes. ⏳",
-        );
+        setAiInsight(t("ai.quotaExceeded"));
       } else {
-        setAiInsight(
-          // eslint-disable-next-line no-constant-binary-expression
-          "Could Not Load AI" || "Could not load AI insight right now.",
-        );
+        setAiInsight(t("ai.errorLoading"));
       }
     } finally {
       setAiLoading(false);
@@ -232,6 +240,7 @@ ${JSON.stringify(summary, null, 2)}`;
     lowStockItems.length,
     chartData,
     dashStats,
+    t
   ]);
 
   useEffect(() => {
@@ -239,37 +248,43 @@ ${JSON.stringify(summary, null, 2)}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fmt = (n) => `₹${new Intl.NumberFormat("en-IN").format(Math.round(n))}`;
+  const fmt = (n) => {
+    return new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language, {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(Math.round(n));
+  };
 
   return (
     <div className="space-y-6 pb-24 text-white">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          label={"Todays Revenue"}
+          label={t("dashboard.todaysRevenue")}
           value={fmt(todayRevenue)}
-          sub={"Sales Today"}
+          sub={t("dashboard.salesToday")}
           color="indigo"
           icon={TrendingUp}
         />
         <StatCard
-          label={"Todays Profit"}
+          label={t("dashboard.todaysProfit")}
           value={fmt(todayProfit)}
-          sub={"After Purchase Cost"}
+          sub={t("dashboard.afterPurchaseCost")}
           color="emerald"
           icon={TrendingUp}
         />
         <StatCard
-          label={"Total Credit"}
+          label={t("dashboard.totalCredit")}
           value={fmt(totalCredit)}
-          sub={`${dueCustomers.length} ${"Customers"}`}
+          sub={`${dueCustomers.length} ${t("dashboard.customers")}`}
           color="rose"
           icon={Users}
         />
         <StatCard
-          label={"Low Stock"}
+          label={t("dashboard.lowStock")}
           value={lowStockItems.length}
-          sub={"Items Near Alert"}
+          sub={t("dashboard.itemsNearAlert")}
           color="amber"
           icon={AlertTriangle}
         />
@@ -283,17 +298,17 @@ ${JSON.stringify(summary, null, 2)}`;
               <Sparkles size={14} className="text-indigo-400" />
             </div>
             <p className="font-black text-white text-sm">
-              {"AI Business Insight"}
+              {t("dashboard.aiBusinessInsight")}
             </p>
             <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              {"Live"}
+              {t("dashboard.live")}
             </span>
           </div>
           <button
             onClick={fetchAiInsight}
             disabled={aiLoading}
             className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors disabled:opacity-40"
-            title={"Refresh Insight"}
+            title={t("dashboard.refreshInsight")}
           >
             <RefreshCw size={14} className={aiLoading ? "animate-spin" : ""} />
           </button>
@@ -306,7 +321,7 @@ ${JSON.stringify(summary, null, 2)}`;
           </div>
         ) : (
           <AiInsightText
-            text={aiInsight || "Analyzing Data"}
+            text={aiInsight || t("dashboard.analyzingData")}
             isError={aiError}
           />
         )}
@@ -314,7 +329,7 @@ ${JSON.stringify(summary, null, 2)}`;
 
       {/* Revenue & Profit Chart */}
       <div className="panel-tech rounded-2xl p-5 min-w-0 overflow-hidden">
-        <h2 className="font-bold text-white mb-4">{"Revenue Vs Profit"}</h2>
+        <h2 className="font-bold text-white mb-4">{t("dashboard.revenueVsProfit")}</h2>
         <div className="h-52 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
@@ -377,15 +392,56 @@ ${JSON.stringify(summary, null, 2)}`;
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+        {/* Reminders Due */}
+        <div className="panel-tech rounded-2xl p-5 border-indigo-500/20">
+          <h2 className="font-bold text-white mb-4 flex items-center gap-2">
+            <Clock size={16} className="text-indigo-400" />{" "}
+            {t("dashboard.remindersDueToday")}
+            {remindersDue.length > 0 && (
+              <span className="ml-auto bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+                {remindersDue.length}
+              </span>
+            )}
+          </h2>
+          {remindersDue.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-6">
+              {t("dashboard.noRemindersForToday")}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {remindersDue.map((c) => (
+                <div
+                  key={c._id}
+                  onClick={() => navigate("/dashboard/khata")}
+                  className="flex items-center justify-between bg-indigo-500/5 px-4 py-3 rounded-xl border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/10 transition-colors"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-white">{c.name}</p>
+                    <p className="text-xs text-slate-500">{c.phone}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-indigo-400">
+                      {fmt(c.totalCredit)}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold">
+                      {t("dashboard.clickToSend")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Top Selling */}
         <div className="panel-tech rounded-2xl p-5">
           <h2 className="font-bold text-white mb-4 flex items-center gap-2">
             <Package size={16} className="text-indigo-400" />{" "}
-            {"Top Selling Items"}
+            {t("dashboard.topSellingItems")}
           </h2>
           {topSelling.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-6">
-              {"No Sales Yet"}
+              {t("dashboard.noSalesYet")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -408,7 +464,7 @@ ${JSON.stringify(summary, null, 2)}`;
                     </div>
                   </div>
                   <span className="text-xs font-black text-slate-300">
-                    {item.qty} {"Sold"}
+                    {item.qty} {t("dashboard.sold")}
                   </span>
                 </div>
               ))}
@@ -420,11 +476,11 @@ ${JSON.stringify(summary, null, 2)}`;
         <div className="panel-tech rounded-2xl p-5">
           <h2 className="font-bold text-white mb-4 flex items-center gap-2">
             <Users size={16} className="text-rose-400" />{" "}
-            {"Top Credit Customers"}
+            {t("dashboard.topCreditCustomers")}
           </h2>
           {dueCustomers.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-6">
-              {"No Outstanding Credit"}
+              {t("dashboard.noOutstandingCredit")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -443,7 +499,7 @@ ${JSON.stringify(summary, null, 2)}`;
                     </p>
                     {c.creditLimit > 0 && (
                       <p className="text-xs text-slate-500">
-                        {"Limit"}: {fmt(c.creditLimit)}
+                        {t("dashboard.limit")}: {fmt(c.creditLimit)}
                       </p>
                     )}
                   </div>
@@ -458,8 +514,8 @@ ${JSON.stringify(summary, null, 2)}`;
       {lowStockItems.length > 0 && (
         <div className="panel-tech rounded-2xl p-5 border-amber-500/20">
           <h2 className="font-bold text-amber-400 mb-4 flex items-center gap-2">
-            <AlertTriangle size={16} /> {"Low Stock Warning"} (
-            {lowStockItems.length} {"Items"})
+            <AlertTriangle size={16} /> {t("dashboard.lowStockWarning")} (
+            {lowStockItems.length} {t("common.inventory")})
           </h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {lowStockItems.slice(0, 6).map((item) => {
@@ -474,7 +530,7 @@ ${JSON.stringify(summary, null, 2)}`;
                     {item.name}
                   </p>
                   <span className="text-xs font-black text-amber-400 ml-2 shrink-0">
-                    {qty} {"Left"}
+                    {qty} {t("dashboard.left")}
                   </span>
                 </div>
               );

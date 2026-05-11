@@ -1,8 +1,11 @@
 import { Menu } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "../common/LanguageSwitcher";
 
 const Topbar = ({ setSidebarOpen }) => {
+  const { t } = useTranslation();
   const [initials, setInitials] = useState("SB");
   const [shopName, setShopName] = useState("");
   const [userAvatar, setUserAvatar] = useState(null);
@@ -10,24 +13,24 @@ const Topbar = ({ setSidebarOpen }) => {
 
   const getPageTitle = (path) => {
     const map = {
-      "/dashboard": "Dashboard",
-      "/dashboard/pos": "POS",
-      "/dashboard/inventory": "Inventory",
-      "/dashboard/stock-adjustment": "Stock Adjustment",
-      "/dashboard/khata": "Khata",
-      "/dashboard/reports": "Reports",
-      "/dashboard/ai-chat": "AI Assistant",
-      "/dashboard/settings": "Settings",
-      "/dashboard/profile": "Profile",
-      "/dashboard/expenses": "Expenses",
-      "/dashboard/suppliers": "Suppliers",
-      "/dashboard/staff": "Staff",
+      "/dashboard": t("common.dashboard"),
+      "/dashboard/pos": t("common.pos"),
+      "/dashboard/inventory": t("common.inventory"),
+      "/dashboard/stock-adjustment": t("common.stockAdjustment"),
+      "/dashboard/khata": t("khata.title"),
+      "/dashboard/reports": t("common.reports"),
+      "/dashboard/ai-chat": t("common.aiAssistant"),
+      "/dashboard/settings": t("common.settings"),
+      "/dashboard/profile": t("settings.profile"),
+      "/dashboard/expenses": t("common.expenses"),
+      "/dashboard/suppliers": t("common.suppliers"),
+      "/dashboard/staff": t("common.staff"),
     };
     if (map[path]) return map[path];
     for (const [key, val] of Object.entries(map)) {
       if (path.startsWith(key) && key !== "/dashboard") return val;
     }
-    return "Dashboard";
+    return t("common.dashboard");
   };
 
   const currentPage = getPageTitle(location.pathname);
@@ -73,6 +76,10 @@ const Topbar = ({ setSidebarOpen }) => {
       </div>
 
       <div className="flex items-center gap-3 md:gap-4 shrink-0">
+        <div className="hidden sm:block">
+          <LanguageSwitcher />
+        </div>
+        
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">

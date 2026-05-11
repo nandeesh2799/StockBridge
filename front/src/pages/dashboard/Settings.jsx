@@ -4,8 +4,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useOutletContext } from "react-router-dom";
 import { toast } from "sonner";
-import { Upload, X, ImageIcon } from "lucide-react";
+import { Upload, X, ImageIcon, Globe } from "lucide-react";
 import API from "../../api/axiosInstance";
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "../../components/common/LanguageSwitcher";
 
 const schema = z.object({
   shopName: z.string().min(2, "Shop name must be at least 2 characters"),
@@ -102,12 +104,26 @@ const ImageUploadSection = ({
 );
 
 const Settings = () => {
+  const { t, i18n } = useTranslation();
   const { shopProfile, setShopProfile } = useOutletContext();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
   const [localLogo, setLocalLogo] = useState(null);
   const [localSignature, setLocalSignature] = useState(null);
   const [uploadServiceStatus, setUploadServiceStatus] = useState("checking");
+
+  const schema = z.object({
+    shopName: z.string().min(2, t("validation.required")),
+    ownerName: z.string().min(2, t("validation.required")),
+    phone: z.string().regex(/^\d{10}$/, t("validation.invalidPhone")),
+    address: z.string().optional(),
+    upiId: z.string().optional(),
+    gstin: z.string().optional(),
+    bankAccount: z.string().optional(),
+    ifsc: z.string().optional(),
+    businessType: z.enum(["Retail", "Wholesale", "Both"]).optional(),
+    currency: z.string().optional(),
+  });
 
   const {
     register,
@@ -168,11 +184,11 @@ const Settings = () => {
 
   const onSubmit = async (data) => {
     try {
-      const res = await API.put("/auth/profile", data);
+      const res = await API.put("/auth/profile", { ...data, language: i18n.language });
       setShopProfile(res.data.data);
-      toast.success("Settings saved!");
+      toast.success(t("settings.settingsSaved"));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to save settings.");
+      toast.error(err.response?.data?.message || t("common.errorSaving"));
     }
   };
 
@@ -190,7 +206,7 @@ const Settings = () => {
       const res = await API.put("/auth/profile", { logo: url });
       setShopProfile(res.data.data);
       setLocalLogo(url);
-      toast.success("Shop logo updated! It will appear on invoices.");
+      toast.success(t("toast.settingsSaved"));
     } catch (err) {
       toast.error(err.message || "Logo upload failed.");
     } finally {
@@ -205,7 +221,7 @@ const Settings = () => {
       return toast.error("File must be under 2MB.");
     // Validate it's an image
     if (!file.type.startsWith("image/"))
-      return toast.error("Please upload an image file (PNG recommended).");
+      return toast.error(t("validation.uploadError"));
     setUploadingSignature(true);
     try {
       const url = await uploadToImageKit(
@@ -215,7 +231,7 @@ const Settings = () => {
       const res = await API.put("/auth/profile", { signature: url });
       setShopProfile(res.data.data);
       setLocalSignature(url);
-      toast.success("Signature uploaded! It will appear on invoices.");
+      toast.success(t("toast.settingsSaved"));
     } catch (err) {
       toast.error(err.message || "Signature upload failed.");
     } finally {
@@ -246,45 +262,57 @@ const Settings = () => {
     <div className="max-w-2xl mx-auto pb-24">
       <div className="mb-8">
         <h1 className="text-2xl font-black text-white tracking-tight">
-          Business Settings
+          {t("settings.businessSettings")}
         </h1>
         <p className="text-slate-400 mt-1 text-sm">
-          These details appear on invoices and payment QR codes.
+          {t("settings.businessSettingsDesc")}
         </p>
+      </div>
+
+      {/* === LANGUAGE SECTION === */}
+      <div className="bg-[#111113] border border-slate-800 rounded-2xl p-6 space-y-4 mb-6">
+        <div>
+          <h2 className="font-bold text-white text-lg flex items-center gap-2">
+            <Globe size={20} className="text-indigo-400" />
+            {t("settings.language")}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {t("settings.languageDesc")}
+          </p>
+        </div>
+        <div className="max-w-xs">
+          <LanguageSwitcher />
+        </div>
       </div>
 
       <div className="bg-[#111113] border border-slate-800 rounded-2xl p-6 space-y-6 mb-6">
         <div>
-          <h2 className="font-bold text-white text-lg mb-1">Brand Assets</h2>
+          <h2 className="font-bold text-white text-lg mb-1">{t("settings.brandAssets")}</h2>
           <p className="text-xs text-slate-500">
-            Logo and signature appear on every invoice you generate.
+            {t("settings.brandAssetsDesc")}
           </p>
           <div className="mt-3">
             {uploadServiceStatus === "checking" && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 text-xs font-bold">
-                Checking upload service...
+                {t("common.loading")}
               </span>
             )}
             {uploadServiceStatus === "ready" && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold">
-                Upload service is configured
+                {t("settings.uploaded")}
               </span>
             )}
             {uploadServiceStatus === "unavailable" && (
               <div className="inline-flex flex-col gap-1 px-3 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-bold">
-                <span>Upload service unavailable on server</span>
-                <span className="font-medium text-rose-300/90">
-                  Add IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY and
-                  IMAGEKIT_URL_ENDPOINT in backend env.
-                </span>
+                <span>{t("validation.uploadError")}</span>
               </div>
             )}
           </div>
         </div>
 
         <ImageUploadSection
-          label="Shop Logo"
-          hint="Shown at the top-left of your invoice. Use a transparent PNG for best results."
+          label={t("settings.shopLogo")}
+          hint={t("settings.shopLogoDesc")}
           currentUrl={localLogo}
           onUpload={handleLogoUpload}
           uploading={uploadingLogo}
@@ -292,8 +320,8 @@ const Settings = () => {
 
         <div className="border-t border-slate-800/60 pt-6">
           <ImageUploadSection
-            label="Signature"
-            hint="Your authorized signature shown at the bottom of invoices. PNG with transparent background recommended."
+            label={t("settings.signature")}
+            hint={t("settings.signatureDesc")}
             currentUrl={localSignature}
             onUpload={handleSignatureUpload}
             uploading={uploadingSignature}
@@ -305,62 +333,66 @@ const Settings = () => {
       {/* === BUSINESS INFO SECTION === */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="bg-[#111113] border border-slate-800 rounded-2xl p-6 space-y-5">
-          <h2 className="font-bold text-white text-lg">Business Information</h2>
+          <h2 className="font-bold text-white text-lg">{t("settings.businessInfo")}</h2>
           <Field
-            label="Shop Name"
+            label={t("settings.shopName")}
             name="shopName"
-            placeholder="StockBridge Store"
+            placeholder={t("settings.shopName")}
           />
           <Field
-            label="Owner Name"
+            label={t("settings.ownerName")}
             name="ownerName"
-            placeholder="Your full name"
+            placeholder={t("settings.ownerName")}
           />
           <Field
-            label="Phone Number"
+            label={t("settings.phoneNumber")}
             name="phone"
             placeholder="10-digit mobile"
             type="tel"
           />
           <Field
-            label="Address"
+            label={t("settings.address")}
             name="address"
-            placeholder="Shop address (appears on invoice)"
+            placeholder={t("settings.address")}
           />
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">
-              Business Type
+              {t("settings.businessType")}
             </label>
             <select
               {...register("businessType")}
               className="w-full px-4 py-3 rounded-xl bg-[#09090b] border border-slate-700 text-white outline-none focus:border-indigo-500"
             >
-              {["Retail", "Wholesale", "Both"].map((type) => (
-                <option key={type}>{type}</option>
+              {[
+                { val: "Retail", label: t("common.retail") },
+                { val: "Wholesale", label: t("common.wholesale") },
+                { val: "Both", label: t("common.both") },
+              ].map((type) => (
+                <option key={type.val} value={type.val}>{type.label}</option>
               ))}
             </select>
           </div>
         </div>
 
         <div className="bg-[#111113] border border-slate-800 rounded-2xl p-6 space-y-5">
-          <h2 className="font-bold text-white text-lg">Payment Details</h2>
+          <h2 className="font-bold text-white text-lg">{t("settings.paymentDetails")}</h2>
           <div>
-            <Field label="UPI ID" name="upiId" placeholder="yourname@paytm" />
+            <Field label={t("settings.upiId")} name="upiId" placeholder="yourname@paytm" />
             <p className="text-xs text-slate-500 mt-1">
-              Used to generate QR codes at POS checkout.
+              {t("billing.addUpiPrompt")}
             </p>
           </div>
           <Field
-            label="GSTIN"
+            label={t("settings.gstin")}
             name="gstin"
-            placeholder="22AAAAA0000A1Z5 (optional)"
+            placeholder="22AAAAA0000A1Z5"
           />
           <Field
-            label="Bank Account"
+            label={t("settings.bankAccount")}
             name="bankAccount"
-            placeholder="For records only"
+            placeholder={t("settings.bankAccount")}
           />
-          <Field label="IFSC Code" name="ifsc" placeholder="SBIN0001234" />
+          <Field label={t("settings.ifsc")} name="ifsc" placeholder="IFSC" />
         </div>
 
         <button
@@ -369,10 +401,10 @@ const Settings = () => {
           className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isSubmitting
-            ? "Saving..."
+            ? t("common.processing")
             : isDirty
-              ? "Save Settings"
-              : "No Changes"}
+              ? t("settings.saveSettings")
+              : t("settings.noChanges")}
         </button>
       </form>
     </div>

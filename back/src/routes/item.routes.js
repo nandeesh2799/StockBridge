@@ -5,6 +5,7 @@ import {
   updateItem,
   deleteItem,
   getInventoryStats,
+  lookupBarcodeProduct,
 } from "../controllers/item.controller.js";
 import { protect, authorize } from "../middlewares/auth.middleware.js";
 
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get("/stats", getInventoryStats);
+router.get("/barcode-lookup/:barcode", lookupBarcodeProduct);
 
 router.route("/").get(getItems).post(authorize("owner", "manager", "cashier"), addItem);
 

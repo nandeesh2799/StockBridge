@@ -42,7 +42,7 @@ const saleSchema = new mongoose.Schema(
 
 saleSchema.pre("save", function (next) {
   if (!this.invoiceNumber) {
-    this.invoiceNumber = `RF-${Date.now().toString().slice(-7)}`;
+    this.invoiceNumber = `SB-${Date.now().toString().slice(-7)}`;
   }
   next();
 });

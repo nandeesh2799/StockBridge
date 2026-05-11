@@ -73,6 +73,48 @@ export const getExpenses = async (req, res) => {
   }
 };
 
+// @route   PUT /api/v1/expenses/:id
+export const updateExpense = async (req, res) => {
+  try {
+    const { category, amount, description, date, paymentMethod, receipt } =
+      req.body;
+
+    if (!category || !amount) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Category and amount are required." });
+    }
+
+    const expense = await Expense.findOne({
+      _id: req.params.id,
+      shop: req.shop.id,
+    });
+
+    if (!expense) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Expense not found." });
+    }
+
+    expense.category = category;
+    expense.amount = Number(amount);
+    expense.description = description || "";
+    expense.date = date ? new Date(date) : expense.date;
+    expense.paymentMethod = paymentMethod || "Cash";
+    expense.receipt = receipt || null;
+
+    await expense.save();
+
+    res.status(200).json({
+      success: true,
+      data: expense,
+      message: "Expense updated successfully.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @route   DELETE /api/v1/expenses/:id
 export const deleteExpense = async (req, res) => {
   try {

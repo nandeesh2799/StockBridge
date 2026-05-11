@@ -46,6 +46,7 @@ const shopSchema = new mongoose.Schema(
     logo: { type: String, default: null },
     signature: { type: String, default: null },
     isPremium: { type: Boolean, default: false },
+    language: { type: String, default: "en", enum: ["en", "hi", "kn"] },
   },
   { timestamps: true },
 );

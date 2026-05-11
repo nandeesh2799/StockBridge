@@ -3,12 +3,33 @@ import { useOutletContext, useNavigate } from "react-router-dom";
 import { Trash2, Plus, Minus, Search, Receipt, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
+import { useTranslation } from "react-i18next";
 import API from "../../api/axiosInstance";
 
 const POS = () => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const currentLang = i18n.language || "en";
+
+  const getItemName = (item) => {
+    if (!item) return "";
+    if (typeof item.name === "object") {
+      return item.name[currentLang] || item.name.en || "";
+    }
+    return item.name || "";
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat(currentLang === 'en' ? 'en-IN' : currentLang, {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
   const {
     items,
+    sales = [],
     setSales,
     shopProfile = {},
     customers,
@@ -23,6 +44,9 @@ const POS = () => {
   const [search, setSearch] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [payments, setPayments] = useState({ cash: "", upi: "", credit: "" });
+  const [isUpiAuto, setIsUpiAuto] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [showPosHistory, setShowPosHistory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [barcodeMode, setBarcodeMode] = useState(false);
@@ -83,8 +107,9 @@ const POS = () => {
     const stock = product.batches?.reduce((s, b) => s + b.quantity, 0) || 0;
     const existing = cart.find((c) => c.itemId === product._id);
     const currentQty = existing?.quantity || 0;
+    const prodName = getItemName(product);
     if (currentQty >= stock)
-      return toast.error(`Only ${stock} units of ${product.name} in stock!`);
+      return toast.error(`${t("validation.stockUnavailable")}: ${stock} units of ${prodName}`);
     if (existing) {
       setCart((prev) =>
         prev.map((c) =>
@@ -97,7 +122,7 @@ const POS = () => {
         {
           itemId: product._id,
           batchId: product.batches?.[0]?._id,
-          name: product.name,
+          name: prodName,
           sellingPrice: product.batches?.[0]?.sellingPrice || 0,
           purchasePrice: product.batches?.[0]?.purchasePrice || 0,
           quantity: 1,
@@ -127,12 +152,6 @@ const POS = () => {
   };
 
   const normalizeBarcode = (value = "") => value.trim();
-  const normalizeTagValue = (value = "") =>
-    value
-      .replace(/^en:/i, "")
-      .replace(/[-_]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
 
   const inferUnit = (quantityText = "") => {
     const text = (quantityText || "").toLowerCase();
@@ -150,8 +169,8 @@ const POS = () => {
       .slice(0, 3);
 
     const candidates = items.filter((entry) => {
-      const entryName = (entry.name || "").toLowerCase();
-      const entryCategory = (entry.category || "").toLowerCase();
+      const entryName = getItemName(entry).toLowerCase();
+      const entryCategory = (typeof entry.category === 'string' ? entry.category : entry.category?.en || "").toLowerCase();
       const hasCategoryMatch = categoryLower && entryCategory.includes(categoryLower);
       const hasNameMatch =
         nameTokens.length > 0 &&
@@ -181,39 +200,38 @@ const POS = () => {
     };
   };
 
-  const mapOpenFoodFactsDetails = (barcode, product = {}) => {
-    const categories = Array.isArray(product?.categories_tags)
-      ? product.categories_tags
-      : [];
-    const firstCategory = normalizeTagValue(categories[0] || "");
-    const quantityText = product?.quantity || "";
+  /** Maps backend `/items/barcode-lookup` payload into the quick-add form. */
+  const mapLookupPayloadToAddItemForm = (barcode, d) => {
+    const name = (d.name || "").trim();
+    const quantityText = (d.quantityText || "").trim();
+    const category = (d.category || "").trim();
+    const priceHints = estimatePricesFromLocalInventory(name, category);
 
-    const inferredName =
-      product?.product_name?.trim() ||
-      product?.product_name_en?.trim() ||
-      product?.generic_name?.trim() ||
-      "";
-    const inferredCategory = firstCategory || "";
-    const priceHints = estimatePricesFromLocalInventory(
-      inferredName,
-      inferredCategory,
-    );
-
-    // Try to extract price from labels or names if present (crowdsourced data)
     let extractedPrice = "";
-    const priceMatch = (inferredName || "").match(/MRP[:\s]*(\d+)/i) || 
-                       (product?.labels || "").match(/MRP[:\s]*(\d+)/i);
+    const priceMatch = name.match(/MRP[:\s]*(\d+)/i);
     if (priceMatch) extractedPrice = priceMatch[1];
+
+    const apiPrice = d.suggestedSellingPrice;
+    const sellingPrice =
+      extractedPrice ||
+      (apiPrice != null && apiPrice !== ""
+        ? String(apiPrice)
+        : priceHints.sellingPrice !== ""
+          ? String(priceHints.sellingPrice)
+          : "");
+
+    const purchasePrice =
+      priceHints.purchasePrice !== "" ? String(priceHints.purchasePrice) : "";
 
     return {
       barcode,
-      name: inferredName,
-      category: inferredCategory,
+      name,
+      category,
       unit: inferUnit(quantityText),
       taxPercent: "0",
       hsn: "",
-      sellingPrice: extractedPrice || priceHints.sellingPrice,
-      purchasePrice: priceHints.purchasePrice || (extractedPrice ? Math.round(extractedPrice * 0.8) : ""),
+      sellingPrice,
+      purchasePrice,
     };
   };
 
@@ -241,29 +259,30 @@ const POS = () => {
     return reader;
   };
 
-  const fetchProductFromAllSources = async (barcode, timeoutMs = 2000) => {
-    const sources = [
-      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
-      `https://world.openproductsfacts.org/api/v0/product/${barcode}.json`,
-      `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`,
-    ];
-
-    for (const url of sources) {
-      try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), timeoutMs);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(id);
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data && data.status === 1 && data.product) {
-          return { product: data.product, sourceName: url.split(".")[1] };
-        }
-      } catch (err) {
-        continue;
+  const fetchBarcodeLookup = async (barcode) => {
+    try {
+      const res = await API.get(
+        `/items/barcode-lookup/${encodeURIComponent(barcode)}`,
+      );
+      if (res.data?.success && res.data?.data) {
+        return {
+          ok: true,
+          data: res.data.data,
+          source: res.data.source,
+          cached: !!res.data.cached,
+        };
       }
+      return {
+        ok: false,
+        message: res.data?.message,
+      };
+    } catch (e) {
+      const d = e.response?.data;
+      return {
+        ok: false,
+        message: d?.message,
+      };
     }
-    return null;
   };
 
   const openAddItemModal = ({
@@ -300,23 +319,30 @@ const POS = () => {
       addToCart(found);
       setLastScannedItemId(found._id);
       playBeep();
-      toast.success("Item added");
+      toast.success(t("toast.itemAdded"));
       return;
     }
 
-    toast.info("New product detected");
+    toast.info(t("toast.newProductDetected"));
     setPendingBarcodeLookup(true);
 
     try {
-      const result = await fetchProductFromAllSources(barcode, 1500);
-      if (result) {
-        openAddItemModal(mapOpenFoodFactsDetails(barcode, result.product));
-        setAutoFillSource(result.sourceName);
+      const lookup = await fetchBarcodeLookup(barcode);
+      if (lookup.ok) {
+        openAddItemModal(mapLookupPayloadToAddItemForm(barcode, lookup.data));
+        setAutoFillSource(
+          lookup.cached ? `${lookup.source} (cache)` : lookup.source,
+        );
       } else {
         openAddItemModal({ barcode });
+        const msg =
+          lookup.message ||
+          t("validation.noBarcodeDetected");
+        toast.error(msg);
       }
     } catch {
       openAddItemModal({ barcode });
+      toast.error(t("validation.lookupError"));
     } finally {
       setPendingBarcodeLookup(false);
     }
@@ -333,20 +359,20 @@ const POS = () => {
   const handleSaveScannedItem = async (e) => {
     e.preventDefault();
     if (!addItemForm.name || !addItemForm.sellingPrice || !addItemForm.quantity) {
-      toast.error("Name, selling price and quantity are required.");
+      toast.error(t("validation.itemDetailsRequired"));
       return;
     }
     if (!addItemForm.barcode) {
-      toast.error("Barcode is required.");
+      toast.error(t("validation.barcodeRequired"));
       return;
     }
 
     setIsSavingScannedItem(true);
     try {
       const payload = {
-        name: addItemForm.name.trim(),
+        name: { [currentLang]: addItemForm.name.trim() },
         barcode: addItemForm.barcode.trim(),
-        category: addItemForm.category.trim() || "General",
+        category: { [currentLang]: addItemForm.category.trim() || "General" },
         unit: addItemForm.unit || "piece",
         alertQuantity: 5,
         taxPercent: Number(addItemForm.taxPercent || 0),
@@ -375,7 +401,7 @@ const POS = () => {
       addToCart(savedItem);
       setLastScannedItemId(savedItem._id);
       playBeep();
-      toast.success("Item added");
+      toast.success(t("toast.itemAdded"));
       setShowAddItemModal(false);
       setAddItemForm({
         name: "",
@@ -612,13 +638,13 @@ const POS = () => {
     try {
       const value = await detectBarcodeFromVideoFrame();
       if (!value) {
-        toast.error("No barcode detected in camera frame.");
+        toast.error(t("validation.missingRequiredFields")); // Or a more specific one if I had it
         return;
       }
       closeCameraScan();
       await handleScan(value);
     } catch {
-      toast.error("Unable to read barcode from camera.");
+      toast.error(t("validation.uploadError"));
     }
   };
 
@@ -663,11 +689,13 @@ const POS = () => {
     const hydrateFromBarcode = async () => {
       setIsAutoFillingProduct(true);
       try {
-        const result = await fetchProductFromAllSources(barcode, 2500);
-        if (!result || cancelled) return;
-        const mapped = mapOpenFoodFactsDetails(barcode, result.product);
+        const lookup = await fetchBarcodeLookup(barcode);
+        if (!lookup.ok || cancelled) return;
+        const mapped = mapLookupPayloadToAddItemForm(barcode, lookup.data);
         mergeAutoFillIntoForm(barcode, mapped);
-        setAutoFillSource(result.sourceName);
+        setAutoFillSource(
+          lookup.cached ? `${lookup.source} (cache)` : lookup.source,
+        );
       } catch {
         // Keep manual entry flow if lookup fails.
       } finally {
@@ -685,7 +713,7 @@ const POS = () => {
     const item = items.find((i) => i._id === id);
     const stock = item?.batches?.reduce((s, b) => s + b.quantity, 0) || 0;
     const cartItem = cart.find((c) => c.itemId === id);
-    if (cartItem?.quantity >= stock) return toast.error("Not enough stock!");
+    if (cartItem?.quantity >= stock) return toast.error(t("validation.stockUnavailable"));
     setCart((prev) =>
       prev.map((c) =>
         c.itemId === id ? { ...c, quantity: c.quantity + 1 } : c,
@@ -707,6 +735,17 @@ const POS = () => {
     (sum, item) => sum + item.sellingPrice * item.quantity,
     0,
   );
+  useEffect(() => {
+    if (!isUpiAuto) return;
+    const cash = Number(payments.cash || 0);
+    const credit = Number(payments.credit || 0);
+    const remainingForUpi = Math.max(0, grandTotal - cash - credit);
+    setPayments((prev) => ({
+      ...prev,
+      upi: remainingForUpi > 0 ? remainingForUpi.toFixed(2) : "",
+    }));
+  }, [grandTotal, payments.cash, payments.credit, isUpiAuto]);
+
   const upiAmount = Number(payments.upi || 0);
   const upiLink =
     upiAmount > 0 && UPI_ID
@@ -714,16 +753,16 @@ const POS = () => {
       : null;
 
   const handleCheckoutClick = () => {
-    if (cart.length === 0) return toast.error("Cart is empty.");
+    if (cart.length === 0) return toast.error(t("billing.noItemsInCart"));
     const cash = Number(payments.cash || 0);
     const upi = Number(payments.upi || 0);
     const credit = Number(payments.credit || 0);
     if (
       Math.round((cash + upi + credit) * 100) !== Math.round(grandTotal * 100)
     )
-      return toast.error(`Split must equal ₹${grandTotal.toFixed(2)}`);
+      return toast.error(`${t("billing.insufficientPayment")} (${formatCurrency(grandTotal)})`);
     if (credit > 0 && customerPhone.trim().length < 10)
-      return toast.error("10-digit phone required for Credit.");
+      return toast.error(t("validation.invalidPhone"));
     setShowConfirmModal(true);
   };
 
@@ -756,7 +795,7 @@ const POS = () => {
             );
             if (found) customerId = found._id;
           } else {
-            toast.error("Error registering customer.");
+            toast.error(t("validation.error"));
             setIsSubmitting(false);
             return;
           }
@@ -814,23 +853,56 @@ const POS = () => {
           };
         }),
       );
+      let waUrl = "";
       if (customerPhone && customerPhone.trim().length >= 10) {
         const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
-        const msg = `🧾 *${SHOP_NAME}*\nTotal: ₹${grandTotal.toFixed(2)}\nCredit: ₹${credit.toFixed(2)}\n🙏 Thanks!`;
-        window.open(
-          `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`,
-          "_blank",
-          "noopener,noreferrer",
-        );
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(currentLang === 'en' ? 'en-IN' : currentLang, {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+        const timeStr = now.toLocaleTimeString(currentLang === 'en' ? 'en-IN' : currentLang, {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        const itemDetails = cart
+          .map(
+            (i) =>
+              `${i.name.toUpperCase()}\nQty: ${i.quantity} | Rate: ${i.sellingPrice.toFixed(2)} | Total: ${(i.quantity * i.sellingPrice).toFixed(2)}`,
+          )
+          .join("\n\n");
+
+        const paymentSplitStr = [
+          cash > 0 ? `- ${t("billing.cash")} : ${cash.toFixed(2)}` : "",
+          upi > 0 ? `- ${t("billing.upi")} : ${upi.toFixed(2)}` : "",
+          credit > 0 ? `- ${t("billing.credit")} : ${credit.toFixed(2)}` : "",
+        ].filter(Boolean).join("\n");
+
+        const message =
+          t("whatsapp.invoiceHeader", { shopName: SHOP_NAME.toUpperCase() }) +
+          t("whatsapp.invoiceDetails", { invoiceNo: savedSale.invoiceNumber, date: dateStr, time: timeStr, items: itemDetails }) +
+          t("whatsapp.invoiceSummary", { subTotal: grandTotal.toFixed(2), total: grandTotal.toFixed(2) }) +
+          t("whatsapp.paymentDetails", { paymentSplit: paymentSplitStr }) +
+          t("whatsapp.footer", { shopName: SHOP_NAME });
+
+        waUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
       }
       setCart([]);
       setPayments({ cash: "", upi: "", credit: "" });
+      setIsUpiAuto(true);
       setCustomerPhone("");
       setShowConfirmModal(false);
-      toast.success("Bill Generated! 🚀");
+      toast.success(t("toast.saleSuccess"));
       navigate(`/dashboard/invoice/${savedSale._id}`);
+      if (waUrl) {
+        setTimeout(() => {
+          window.open(waUrl, "_blank", "noopener,noreferrer");
+        }, 150);
+      }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Sale failed!");
+      toast.error(error.response?.data?.message || t("toast.error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -838,24 +910,38 @@ const POS = () => {
 
   const availableItems = items.filter((item) => {
     const stock = item.batches?.reduce((s, b) => s + b.quantity, 0) || 0;
-    return stock > 0 && item.name.toLowerCase().includes(search.toLowerCase());
+    const prodName = getItemName(item);
+    return stock > 0 && prodName.toLowerCase().includes(search.toLowerCase());
+  });
+  const salesHistory = [...sales].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+  );
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+  const filteredSalesHistory = salesHistory.filter((sale) => {
+    const saleDate = new Date(sale.createdAt);
+    if (historyFilter === "today") return saleDate >= startOfToday;
+    if (historyFilter === "week") return saleDate >= startOfWeek;
+    return true;
   });
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 text-white min-h-screen bg-transparent pb-20">
       <div className="flex-1 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-black tracking-tight">Point of Sale</h2>
+          <h2 className="text-2xl font-black tracking-tight">{t("billing.pos")}</h2>
           <button
             onClick={() => {
               setBarcodeMode(!barcodeMode);
               toast.info(
-                barcodeMode ? "Scanner OFF" : "Scanner ON — scan any barcode!",
+                barcodeMode ? t("inventory.scannerOff") : t("inventory.scannerOn"),
               );
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${barcodeMode ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-slate-800 text-slate-400"}`}
           >
-            <Zap size={16} /> {barcodeMode ? "Scanner ON" : "Enable Scanner"}
+            <Zap size={16} /> {barcodeMode ? t("inventory.scannerOn") : t("inventory.enableScanner")}
           </button>
         </div>
 
@@ -867,7 +953,7 @@ const POS = () => {
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search Items..."
+            placeholder={t("billing.quickSearch")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-11 pr-4 py-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500"
@@ -876,7 +962,7 @@ const POS = () => {
         {barcodeMode && (
           <div className="panel-tech rounded-xl p-3 border border-slate-800">
             <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">
-              Scanner Input
+              {t("inventory.barcode")}
             </label>
             <input
               ref={scannerInputRef}
@@ -887,12 +973,12 @@ const POS = () => {
                   scannerInputRef.current?.focus();
                 }
               }}
-              placeholder="Scan barcode and press Enter"
+              placeholder={t("inventory.scanBarcodePlaceholder")}
               className="mt-2 w-full px-3 py-2 bg-[#09090b] border border-slate-700 rounded-lg text-sm outline-none focus:border-indigo-500"
             />
             {pendingBarcodeLookup && (
               <p className="mt-2 text-xs text-amber-400 font-semibold">
-                Checking product info... you can continue billing.
+                {t("inventory.fetchingProductDetails")}
               </p>
             )}
             <input
@@ -908,14 +994,14 @@ const POS = () => {
                 onClick={startCameraScan}
                 className="px-3 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700"
               >
-                Scan via Camera
+                {t("common.camera")}
               </button>
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 className="px-3 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700"
               >
-                Scan via Image
+                {t("common.fromImage")}
               </button>
             </div>
           </div>
@@ -931,27 +1017,106 @@ const POS = () => {
                 onClick={() => addToCart(item)}
                 className={`panel-tech p-4 rounded-2xl hover:border-indigo-500 cursor-pointer active:scale-95 flex flex-col justify-between h-28 shadow-sm ${lastScannedItemId === item._id ? "ring-2 ring-emerald-500/80" : ""}`}
               >
-                <h3 className="font-bold text-sm line-clamp-2">{item.name}</h3>
+                <h3 className="font-bold text-sm line-clamp-2">{getItemName(item)}</h3>
                 <div className="flex justify-between items-center">
                   <p className="font-black text-indigo-400">
-                    ₹{item.batches?.[0]?.sellingPrice || 0}
+                    {formatCurrency(item.batches?.[0]?.sellingPrice || 0)}
                   </p>
                   <span
                     className={`text-[10px] font-bold ${stock <= (item.alertQuantity || 5) ? "text-amber-400" : "text-slate-500"}`}
                   >
-                    {stock} Left
+                    {stock} {t("dashboard.left")}
                   </span>
                 </div>
               </div>
             );
           })}
         </div>
+        <div className="panel-tech rounded-2xl border border-slate-800 p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-black">{t("billing.billingHistory")}</h3>
+            <button
+              onClick={() => setShowPosHistory((prev) => !prev)}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+            >
+              {showPosHistory ? t("common.cancel") : t("common.actions")}
+            </button>
+          </div>
+
+          {showPosHistory && (
+            <>
+              <div className="flex items-center justify-between mt-4 mb-4">
+                <span className="text-xs font-bold text-slate-400">
+                  {t("reports.totalSales")}: {filteredSalesHistory.length}
+                </span>
+              </div>
+
+              <div className="mb-4 flex items-center gap-2">
+                {[
+                  { key: "today", label: t("dashboard.live") },
+                  { key: "week", label: "Week" },
+                  { key: "all", label: "All" },
+                ].map((filter) => (
+                  <button
+                    key={filter.key}
+                    onClick={() => setHistoryFilter(filter.key)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                      historyFilter === filter.key
+                        ? "bg-indigo-600 border-indigo-500 text-white"
+                        : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              {filteredSalesHistory.length === 0 ? (
+                <p className="text-sm text-slate-500">{t("common.noData")}</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {filteredSalesHistory.map((sale) => (
+                    <div
+                      key={sale._id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-[#111113] border border-slate-800"
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-white">
+                          {sale.invoiceNumber || t("billing.invoice")}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {new Date(sale.createdAt).toLocaleString(currentLang === 'en' ? 'en-IN' : currentLang)}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {t("billing.cash")}: {formatCurrency(sale.paymentSplit?.cash || 0)} | {t("billing.upi")}:
+                          {formatCurrency(sale.paymentSplit?.upi || 0)} | {t("billing.credit")}:
+                          {formatCurrency(sale.paymentSplit?.credit || 0)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-indigo-400">
+                          {formatCurrency(sale.totalAmount || 0)}
+                        </p>
+                        <button
+                          onClick={() => navigate(`/dashboard/invoice/${sale._id}`)}
+                          className="mt-2 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                        >
+                          {t("billing.generateInvoice")}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Cart Panel */}
       <div className="w-full lg:w-100 panel-tech rounded-3xl p-5 flex flex-col h-[calc(100vh-100px)] lg:sticky lg:top-20 shadow-xl">
         <h2 className="text-xl font-black mb-4 border-b border-slate-800 pb-3">
-          Cart{" "}
+          {t("billing.cart")}{" "}
           <span className="text-indigo-400 text-sm bg-indigo-500/10 px-2 py-1 rounded ml-2">
             {cart.length}
           </span>
@@ -966,7 +1131,7 @@ const POS = () => {
               <div className="flex-1 min-w-0 pr-2">
                 <p className="text-sm font-bold truncate">{c.name}</p>
                 <p className="text-xs text-indigo-400 font-black">
-                  ₹{c.sellingPrice}
+                  {formatCurrency(c.sellingPrice)}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -998,7 +1163,7 @@ const POS = () => {
           ))}
           {cart.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
-              <p className="text-sm font-bold">Cart is empty</p>
+              <p className="text-sm font-bold">{t("billing.noItemsInCart")}</p>
             </div>
           )}
         </div>
@@ -1006,17 +1171,17 @@ const POS = () => {
         <div className="pt-4 border-t border-slate-800">
           <div className="flex justify-between items-center mb-4 bg-slate-800/50 p-3 rounded-xl">
             <span className="text-slate-400 font-bold uppercase text-xs">
-              Total
+              {t("billing.total")}
             </span>
             <span className="text-2xl font-black text-indigo-400">
-              ₹{grandTotal.toFixed(2)}
+              {formatCurrency(grandTotal)}
             </span>
           </div>
 
           <div className="space-y-3 mb-4">
             <input
               type="tel"
-              placeholder="Customer Phone"
+              placeholder={t("settings.phoneNumber")}
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
               className="w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl text-white outline-none focus:border-indigo-500"
@@ -1025,24 +1190,32 @@ const POS = () => {
               {[
                 {
                   key: "cash",
-                  label: "Cash",
+                  label: t("billing.cash"),
                   border: "border-emerald-500/20",
                 },
-                { key: "upi", label: "UPI", border: "border-indigo-500/20" },
+                { key: "upi", label: t("billing.upi"), border: "border-indigo-500/20" },
                 {
                   key: "credit",
-                  label: "Credit",
+                  label: t("billing.credit"),
                   border: "border-rose-500/30",
                 },
-              ].map(({ key, label, border }) => (
+              ]
+.map(({ key, label, border }) => (
                 <input
                   key={key}
                   type="number"
                   placeholder={label}
                   value={payments[key]}
-                  onChange={(e) =>
-                    setPayments({ ...payments, [key]: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (key === "upi") {
+                      setIsUpiAuto(false);
+                    }
+                    if (key === "cash" || key === "credit") {
+                      setIsUpiAuto(true);
+                    }
+                    setPayments({ ...payments, [key]: value });
+                  }}
                   className={`w-full p-2.5 bg-[#09090b] border ${border} rounded-xl text-white text-sm outline-none`}
                 />
               ))}
@@ -1052,7 +1225,7 @@ const POS = () => {
           {upiLink && (
             <div className="mb-4 flex flex-col items-center bg-white p-3 rounded-xl border-2 border-slate-700">
               <p className="text-slate-900 text-xs font-black mb-2 uppercase tracking-widest">
-                Scan to Pay ₹{upiAmount}
+                {t("billing.scanToPay")} {formatCurrency(upiAmount)}
               </p>
               <QRCodeSVG value={upiLink} size={100} />
             </div>
@@ -1060,7 +1233,7 @@ const POS = () => {
 
           {!UPI_ID && upiAmount > 0 && (
             <p className="text-amber-400 text-xs font-bold mb-3 text-center">
-              ⚠️ Add your UPI ID in Settings to generate QR codes.
+              ⚠️ {t("billing.addUpiPrompt")}
             </p>
           )}
 
@@ -1068,7 +1241,7 @@ const POS = () => {
             onClick={handleCheckoutClick}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all active:scale-95"
           >
-            Checkout ₹{grandTotal.toFixed(2)}
+            {t("billing.checkout")} {formatCurrency(grandTotal)}
           </button>
         </div>
       </div>
@@ -1082,35 +1255,35 @@ const POS = () => {
           <div className="panel-tech rounded-3xl w-full max-w-sm shadow-2xl relative overflow-hidden">
             <div className="bg-indigo-600 p-6 text-white text-center">
               <Receipt size={32} className="mx-auto mb-2 opacity-80" />
-              <h3 className="text-xl font-black">Confirm Bill</h3>
+              <h3 className="text-xl font-black">{t("common.confirm")}</h3>
             </div>
             <div className="p-6 space-y-3">
               <div className="flex justify-between">
-                <span className="text-slate-400">Items</span>
+                <span className="text-slate-400">{t("billing.item")}</span>
                 <span className="font-bold">{cart.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Cash</span>
+                <span className="text-slate-400">{t("billing.cash")}</span>
                 <span className="font-bold text-emerald-400">
-                  ₹{Number(payments.cash || 0).toFixed(2)}
+                  {formatCurrency(payments.cash || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">UPI</span>
+                <span className="text-slate-400">{t("billing.upi")}</span>
                 <span className="font-bold text-indigo-400">
-                  ₹{Number(payments.upi || 0).toFixed(2)}
+                  {formatCurrency(payments.upi || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Credit</span>
+                <span className="text-slate-400">{t("billing.credit")}</span>
                 <span className="font-bold text-rose-400">
-                  ₹{Number(payments.credit || 0).toFixed(2)}
+                  {formatCurrency(payments.credit || 0)}
                 </span>
               </div>
               <div className="flex justify-between pt-2 border-t border-slate-700">
-                <span className="font-black">Total</span>
+                <span className="font-black">{t("billing.total")}</span>
                 <span className="font-black text-indigo-400 text-lg">
-                  ₹{grandTotal.toFixed(2)}
+                  {formatCurrency(grandTotal)}
                 </span>
               </div>
             </div>
@@ -1119,14 +1292,14 @@ const POS = () => {
                 onClick={() => setShowConfirmModal(false)}
                 className="flex-1 py-3 text-slate-300 font-bold bg-slate-800 rounded-xl"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={completeSale}
                 disabled={isSubmitting}
                 className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50"
               >
-                {isSubmitting ? "Processing..." : "Confirm Sale"}
+                {isSubmitting ? t("common.processing") : t("common.confirm")}
               </button>
             </div>
           </div>
@@ -1142,20 +1315,20 @@ const POS = () => {
             onSubmit={handleSaveScannedItem}
             className="relative w-full max-w-md panel-tech rounded-2xl border border-slate-700 p-5 space-y-4"
           >
-            <h3 className="text-lg font-black">Add Scanned Item</h3>
+            <h3 className="text-lg font-black">{t("inventory.addProduct")}</h3>
             {isAutoFillingProduct && (
               <p className="text-xs text-indigo-300">
-                Auto-detecting product details from barcode...
+                {t("inventory.fetchingProductDetails")}
               </p>
             )}
             {autoFillSource && !isAutoFillingProduct && (
               <p className="text-xs text-emerald-300">
-                Details auto-filled from {autoFillSource}. You can edit anything.
+                {t("inventory.autoFilledFrom", { source: autoFillSource })}
               </p>
             )}
             <div>
               <label className="text-xs text-slate-400 font-bold uppercase">
-                Name
+                {t("inventory.itemName")}
               </label>
               <input
                 type="text"
@@ -1164,13 +1337,13 @@ const POS = () => {
                   setAddItemForm((prev) => ({ ...prev, name: e.target.value }))
                 }
                 className="mt-1 w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl outline-none focus:border-indigo-500"
-                placeholder="Product name"
+                placeholder={t("inventory.itemName")}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  Category
+                  {t("inventory.categories")}
                 </label>
                 <input
                   type="text"
@@ -1184,7 +1357,7 @@ const POS = () => {
               </div>
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  Unit
+                  {t("inventory.unitType")}
                 </label>
                 <select
                   value={addItemForm.unit}
@@ -1193,16 +1366,16 @@ const POS = () => {
                   }
                   className="mt-1 w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl outline-none focus:border-indigo-500"
                 >
-                  <option value="piece">Piece</option>
-                  <option value="kg">Kg</option>
-                  <option value="litre">Litre</option>
-                  <option value="box">Box</option>
+                  <option value="piece">{t("common.piece")}</option>
+                  <option value="kg">{t("common.kg")}</option>
+                  <option value="litre">{t("common.litre")}</option>
+                  <option value="box">{t("common.box")}</option>
                 </select>
               </div>
             </div>
             <div>
               <label className="text-xs text-slate-400 font-bold uppercase">
-                Barcode
+                {t("inventory.barcode")}
               </label>
               <input
                 type="text"
@@ -1214,7 +1387,7 @@ const POS = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  GST %
+                  {t("inventory.taxPercent")}
                 </label>
                 <input
                   type="number"
@@ -1232,7 +1405,7 @@ const POS = () => {
               </div>
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  HSN
+                  {t("inventory.hsnCode")}
                 </label>
                 <input
                   type="text"
@@ -1241,14 +1414,14 @@ const POS = () => {
                     setAddItemForm((prev) => ({ ...prev, hsn: e.target.value }))
                   }
                   className="mt-1 w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl outline-none focus:border-indigo-500"
-                  placeholder="Optional"
+                  placeholder={t("common.optional")}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  Selling Price *
+                  {t("inventory.sellingPrice")} *
                 </label>
                 <input
                   type="number"
@@ -1267,7 +1440,7 @@ const POS = () => {
               </div>
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase">
-                  Purchase Price
+                  {t("inventory.purchasePrice")}
                 </label>
                 <input
                   type="number"
@@ -1286,7 +1459,7 @@ const POS = () => {
             </div>
             <div>
               <label className="text-xs text-slate-400 font-bold uppercase">
-                Quantity *
+                {t("inventory.currentQuantity")} *
               </label>
               <input
                 type="number"
@@ -1309,14 +1482,14 @@ const POS = () => {
                 }}
                 className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={isSavingScannedItem}
                 className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-60"
               >
-                {isSavingScannedItem ? "Saving..." : "Save & Add"}
+                {isSavingScannedItem ? t("common.loading") : t("common.save")}
               </button>
             </div>
           </form>
@@ -1329,12 +1502,12 @@ const POS = () => {
             onClick={closeCameraScan}
           />
           <div className="relative w-full max-w-lg panel-tech rounded-2xl border border-slate-700 p-4">
-            <h3 className="text-lg font-black mb-3">Scan via Camera</h3>
+            <h3 className="text-lg font-black mb-3">{t("common.camera")}</h3>
             <div className="rounded-xl overflow-hidden border border-slate-700 bg-black">
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              Auto-scanning is active. Hold barcode in front of the camera.
+              {t("inventory.alignBarcode")}
             </p>
             <div className="mt-3 flex gap-3">
               <button
@@ -1342,7 +1515,7 @@ const POS = () => {
                 onClick={closeCameraScan}
                 className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -1350,7 +1523,7 @@ const POS = () => {
                 disabled={isCameraStarting}
                 className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-60"
               >
-                {isCameraStarting ? "Starting camera..." : "Scan Now (Manual)"}
+                {isCameraStarting ? t("inventory.startingCamera") : t("common.actions")}
               </button>
             </div>
           </div>

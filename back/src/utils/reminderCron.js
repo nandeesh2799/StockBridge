@@ -10,7 +10,7 @@ export const startReminderCron = () => {
 
       const customersDue = await Customer.find({
         totalCredit: { $gt: 0 },
-        nextReminderDate: { $lte: today },
+        nextReminderDate: { $ne: null, $lte: today },
       })
         .populate("shop", "shopName upiId") // Only fetch the 2 fields you actually use
         .lean(); // .lean() returns plain objects — much faster than Mongoose documents
@@ -28,13 +28,39 @@ export const startReminderCron = () => {
         const cleanPhone = customer.phone.replace(/\D/g, "").slice(-10);
         const upiLink = `upi://pay?pa=${shop.upiId}&pn=${shop.shopName}&am=${customer.totalCredit}&cu=INR`;
 
-        const msg = `Namaste *${customer.name}* 🙏,\nAapka *${shop.shopName}* par ₹${customer.totalCredit} ka Credit baaki hai.\n\nKripya is link par click karke payment karein:\n${upiLink}\n\nDhanyawad! 🙏`;
+        const dateStr = new Date().toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+
+        const message = 
+          `==========================\n` +
+          `*${shop.shopName.toUpperCase()}*\n` +
+          `ACCOUNT STATEMENT\n` +
+          `==========================\n` +
+          `Customer Name : ${customer.name}\n` +
+          `Statement Date: ${dateStr}\n` +
+          `--------------------------\n` +
+          `CURRENT OUTSTANDING BALANCE:\n` +
+          `*INR ${customer.totalCredit.toFixed(2)}*\n` +
+          `--------------------------\n` +
+          `This is a formal notification regarding your pending balance at ${shop.shopName}. Please facilitate payment at your earliest convenience.\n\n` +
+          `DIRECT UPI SETTLEMENT LINK:\n${upiLink}\n\n` +
+          `--------------------------\n` +
+          `Thank you for your cooperation.\n\n` +
+          `Regards,\n` +
+          `Accounts Management\n` +
+          `${shop.shopName}\n` +
+          `--------------------------\n` +
+          `POWERED BY STOCKBRIDGE\n` +
+          `==========================`;
 
         console.log(
-          `📱 WhatsApp Reminder for ${customer.name} (${cleanPhone})`,
+          `WhatsApp Reminder for ${customer.name} (${cleanPhone})`,
         );
         console.log(
-          `   URL: https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}\n`,
+          `   URL: https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}\n`,
         );
 
         bulkUpdates.push({

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   Users,
   MessageCircle,
@@ -13,6 +14,7 @@ import API from "../../api/axiosInstance";
 import jsPDF from "jspdf";
 
 const Khata = () => {
+  const { t } = useTranslation();
   const { customers, setCustomers, shopProfile } = useOutletContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -56,14 +58,14 @@ const Khata = () => {
   const handleReceivePayment = async () => {
     const amount = Number(paymentAmount);
     if (!amount || amount <= 0)
-      return toast.error("Enter a valid payment amount.");
+      return toast.error(t("validation.invalidAmount"));
     if (amount > selectedCustomer.totalCredit)
-      return toast.error("Payment exceeds outstanding balance.");
+      return toast.error(t("validation.paymentExceedsBalance"));
     setIsSubmitting(true);
     try {
       const res = await API.put(`/customers/${selectedCustomer._id}`, {
         paymentAmount: amount,
-        paymentNote: paymentNote || "Manual payment received",
+        paymentNote: paymentNote || t("customers.manualPaymentReceived"),
       });
       const updated = res.data.data;
       setCustomers((prev) =>
@@ -72,9 +74,9 @@ const Khata = () => {
       setSelectedCustomer(updated);
       setPaymentAmount("");
       setPaymentNote("");
-      toast.success(`₹${amount} received from ${updated.name}! 💰`);
+      toast.success(t("toast.paymentReceived", { amount, name: updated.name }));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Payment recording failed.");
+      toast.error(err.response?.data?.message || t("toast.error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,20 +84,25 @@ const Khata = () => {
 
   const handleScheduleReminder = async () => {
     try {
-      await API.post(`/customers/${selectedCustomer._id}/schedule-reminder`, {
+      const res = await API.post(`/customers/${selectedCustomer._id}/schedule-reminder`, {
         scheduledDate: reminderDate || null,
       });
-      toast.success("Reminder scheduled!");
+      const updated = { ...selectedCustomer, nextReminderDate: res.data.data.nextReminderDate };
+      setCustomers((prev) =>
+        prev.map((c) => (c._id === updated._id ? updated : c)),
+      );
+      setSelectedCustomer(updated);
+      toast.success(t("toast.reminderSet"));
       setReminderDate("");
     } catch {
-      toast.error("Failed to schedule reminder.");
+      toast.error(t("toast.error"));
     }
   };
 
   const handleWhatsApp = (customer) => {
     const phone = customer.phone.replace(/\D/g, "").slice(-10);
     if (phone.length !== 10) {
-      toast.error("Customer phone number is invalid for WhatsApp.");
+      toast.error(t("validation.invalidPhone"));
       return;
     }
     const upiId = shopProfile?.upiId || "";
@@ -103,40 +110,44 @@ const Khata = () => {
     const upiLink = upiId
       ? `upi://pay?pa=${upiId}&pn=${shopName}&am=${customer.totalCredit}&cu=INR`
       : "";
-    const message = `Hello ${customer.name},
+    const dateStr = new Date().toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
 
-Your outstanding balance with ${shopName} is ₹${customer.totalCredit}.
+    const message = 
+      t("whatsapp.statementHeader", { shopName: shopName.toUpperCase() }) +
+      t("whatsapp.customerDetails", { customerName: customer.name, phone: customer.phone, date: dateStr }) +
+      t("whatsapp.outstandingBalance", { balance: customer.totalCredit.toFixed(2) }) +
+      t("whatsapp.reminderBody", { shopName }) +
+      (upiLink ? t("whatsapp.upiLink", { upiLink }) : "") +
+      t("whatsapp.footer", { shopName });
 
-${upiLink ? `You can pay using this UPI link:\n${upiLink}\n` : ""}
-Please clear your dues at your convenience.
-
-Thank you,
-${shopName}`;
-    window.open(
-      `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    const waUrl = `https://api.whatsapp.com/send?phone=91${phone}&text=${encodeURIComponent(message)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 
   const handlePDFStatement = () => {
     const doc = new jsPDF();
     const shopName = shopProfile?.shopName || "StockBridge";
     const customer = selectedCustomer;
+    const currentLang = i18n.language === 'en' ? 'en-IN' : i18n.language;
+    
     doc.setFontSize(18);
     doc.setFont(undefined, "bold");
     doc.text(shopName, 20, 20);
     doc.setFontSize(12);
     doc.setFont(undefined, "normal");
-    doc.text(`Khata Statement — ${customer.name}`, 20, 35);
-    doc.text(`Phone: ${customer.phone}`, 20, 45);
-    doc.text(`Generated: ${new Date().toLocaleDateString("en-IN")}`, 20, 55);
+    doc.text(t("customers.pdfTitle", { name: customer.name }), 20, 35);
+    doc.text(`${t("staff.phone")}: ${customer.phone}`, 20, 45);
+    doc.text(`${t("inventory.updated")}: ${new Date().toLocaleDateString(currentLang)}`, 20, 55);
     doc.setFontSize(11);
     let y = 75;
     doc.setFont(undefined, "bold");
-    doc.text("Date", 20, y);
-    doc.text("Type", 80, y);
-    doc.text("Amount", 150, y);
+    doc.text(t("expenses.date"), 20, y);
+    doc.text(t("expenses.category"), 80, y);
+    doc.text(t("expenses.amount"), 150, y);
     y += 8;
     doc.setFont(undefined, "normal");
     doc.line(20, y, 190, y);
@@ -146,13 +157,13 @@ ${shopName}`;
         doc.addPage();
         y = 20;
       }
-      doc.text(new Date(entry.date).toLocaleDateString("en-IN"), 20, y);
+      doc.text(new Date(entry.date).toLocaleDateString(currentLang), 20, y);
       doc.text(
         entry.transactionType === "CREDIT_GIVEN" ||
         entry.transactionType === "CREDIT_GIVEN" ||
         entry.transactionType === "GIVEN_UDHAAR"
-          ? "Credit Given"
-          : "Payment Received",
+          ? t("customers.creditGiven")
+          : t("customers.paymentReceived"),
         80,
         y,
       );
@@ -166,17 +177,17 @@ ${shopName}`;
     y += 10;
     doc.setFontSize(13);
     doc.setFont(undefined, "bold");
-    doc.text(`Outstanding Balance: ₹${customer.totalCredit.toFixed(2)}`, 20, y);
+    doc.text(`${t("customers.outstandingBalance")}: ₹${customer.totalCredit.toFixed(2)}`, 20, y);
     doc.save(`Khata_${customer.name.replace(/\s+/g, "_")}.pdf`);
   };
 
   return (
     <div className="text-white min-h-screen pb-24 space-y-6">
       <div>
-        <h1 className="text-2xl font-black tracking-tight">Khata Book</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Track Credit</p>
+        <h1 className="text-2xl font-black tracking-tight">{t("khata.title")}</h1>
+        <p className="text-sm text-slate-400 mt-0.5">{t("khata.subtitle")}</p>
         <div className="mt-4 inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-2 rounded-xl text-sm font-bold">
-          Total Outstanding: ₹
+          {t("khata.totalOutstanding")}: ₹
           {new Intl.NumberFormat("en-IN").format(totalOutstanding)}
         </div>
       </div>
@@ -185,7 +196,7 @@ ${shopName}`;
         <div className="flex-1 space-y-3">
           <input
             type="text"
-            placeholder="Search Customer"
+            placeholder={t("common.search")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-3 panel-tech rounded-xl text-white outline-none focus:border-indigo-500"
@@ -194,7 +205,7 @@ ${shopName}`;
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-slate-500">
               <Users size={48} className="mx-auto mb-4 opacity-20" />
-              <p className="font-bold">No Outstanding Credit</p>
+              <p className="font-bold">{t("dashboard.noOutstandingCredit")}</p>
             </div>
           ) : (
             filtered.map((customer) => (
@@ -277,7 +288,7 @@ ${shopName}`;
               </p>
               {selectedCustomer.creditLimit > 0 && (
                 <p className="text-xs text-slate-400 mt-1">
-                  Credit Limit: ₹
+                  {t("dashboard.limit")}: ₹
                   {new Intl.NumberFormat("en-IN").format(
                     selectedCustomer.creditLimit,
                   )}
@@ -287,18 +298,18 @@ ${shopName}`;
 
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Receive Payment
+                {t("khata.receivePayment")}
               </h4>
               <input
                 type="number"
-                placeholder="Amount Received"
+                placeholder={t("khata.amountReceived")}
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 className="w-full px-4 py-3 bg-[#09090b] border border-slate-700 rounded-xl text-white outline-none focus:border-emerald-500"
               />
               <input
                 type="text"
-                placeholder="Note (Optional)"
+                placeholder={t("khata.noteOptional")}
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
                 className="w-full px-4 py-3 bg-[#09090b] border border-slate-700 rounded-xl text-white outline-none focus:border-emerald-500"
@@ -308,7 +319,7 @@ ${shopName}`;
                 disabled={isSubmitting || !paymentAmount}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl disabled:opacity-40 transition-all"
               >
-                {isSubmitting ? "Processing..." : "Record Payment"}
+                {isSubmitting ? t("khata.processing") : t("khata.recordPayment")}
               </button>
             </div>
 
@@ -317,51 +328,83 @@ ${shopName}`;
                 onClick={() => handleWhatsApp(selectedCustomer)}
                 className="flex items-center gap-2 justify-center py-3 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-sm font-bold hover:bg-emerald-600/30"
               >
-                <MessageCircle size={15} /> WhatsApp
+                <MessageCircle size={15} /> {t("khata.whatsapp")}
               </button>
               <button
                 onClick={handlePDFStatement}
                 className="flex items-center gap-2 justify-center py-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl text-sm font-bold hover:bg-indigo-500/20"
               >
-                PDF Statement
+                {t("khata.pdfStatement")}
               </button>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-slate-800">
-              <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
-                <Clock size={12} /> Schedule Reminder
-              </h4>
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
+                  <Clock size={12} /> {t("khata.scheduleReminder")}
+                </h4>
+                {selectedCustomer.nextReminderDate && (
+                  <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold">
+                    {t("khata.scheduled")}: {new Date(selectedCustomer.nextReminderDate).toLocaleDateString("en-IN")}
+                  </span>
+                )}
+              </div>
               <input
                 type="date"
                 value={reminderDate}
                 onChange={(e) => setReminderDate(e.target.value)}
                 className="w-full px-3 py-2 bg-[#09090b] border border-slate-700 rounded-xl text-white text-sm outline-none"
               />
-              <button
-                onClick={handleScheduleReminder}
-                className="w-full py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-sm hover:bg-slate-700"
-              >
-                Set Reminder
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleScheduleReminder}
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-sm hover:bg-slate-700"
+                >
+                  {t("khata.setReminder")}
+                </button>
+                {selectedCustomer.nextReminderDate && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await API.post(`/customers/${selectedCustomer._id}/schedule-reminder`, {
+                          scheduledDate: null,
+                        });
+                        const updated = { ...selectedCustomer, nextReminderDate: null };
+                        setCustomers((prev) =>
+                          prev.map((c) => (c._id === updated._id ? updated : c)),
+                        );
+                        setSelectedCustomer(updated);
+                        toast.success(t("khata.reminderCleared"));
+                      } catch {
+                        toast.error(t("khata.failedToClearReminder"));
+                      }
+                    }}
+                    className="px-4 py-3 bg-rose-500/10 text-rose-400 font-bold rounded-xl text-sm hover:bg-rose-500/20"
+                    title={t("khata.clear")}
+                  >
+                    {t("khata.clear")}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="pt-2 border-t border-slate-800">
               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2 mb-3">
-                <ShoppingBag size={12} /> Purchase History
+                <ShoppingBag size={12} /> {t("customers.purchaseHistory")}
               </h4>
               {loadingHistory ? (
-                <p className="text-xs text-slate-500">Loading...</p>
+                <p className="text-xs text-slate-500">{t("common.loading")}</p>
               ) : purchaseHistory?.topItems?.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs text-slate-500">
-                    {purchaseHistory.totalVisits} Visits · ₹
-                    {new Intl.NumberFormat("en-IN").format(
+                    {purchaseHistory.totalVisits} {t("customers.visits")} · ₹
+                    {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(
                       purchaseHistory.totalSpent,
                     )}{" "}
-                    Total Spent
+                    {t("customers.totalSpent")}
                   </p>
                   <p className="text-xs font-bold text-slate-400">
-                    Most Bought Items
+                    {t("customers.mostBoughtItems")}
                   </p>
                   {purchaseHistory.topItems.map((item, i) => (
                     <div
@@ -370,23 +413,23 @@ ${shopName}`;
                     >
                       <span className="text-white font-bold">{item.name}</span>
                       <span className="text-indigo-400">
-                        {item.quantity} units
+                        {item.quantity} {t("billing.qty")}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">No Purchase History</p>
+                <p className="text-xs text-slate-500">{t("customers.noPurchaseHistory")}</p>
               )}
             </div>
 
             <div className="pt-2 border-t border-slate-800">
               <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">
-                Transaction History
+                {t("customers.history")}
               </h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {selectedCustomer.khataHistory?.length === 0 ? (
-                  <p className="text-xs text-slate-500">No Transactions Yet</p>
+                  <p className="text-xs text-slate-500">{t("customers.noTransactionsYet")}</p>
                 ) : (
                   [...(selectedCustomer.khataHistory || [])]
                     .reverse()
@@ -400,8 +443,8 @@ ${shopName}`;
                             className={`font-bold ${entry.transactionType === "PAYMENT_RECEIVED" ? "text-emerald-400" : "text-rose-400"}`}
                           >
                             {entry.transactionType === "PAYMENT_RECEIVED"
-                              ? "Payment Received"
-                              : "Credit Given"}
+                              ? t("customers.paymentReceived")
+                              : t("customers.creditGiven")}
                           </p>
                           <p className="text-slate-500">{entry.description}</p>
                         </div>
@@ -415,7 +458,7 @@ ${shopName}`;
                             ₹{entry.amount}
                           </p>
                           <p className="text-slate-600">
-                            {new Date(entry.date).toLocaleDateString("en-IN")}
+                            {new Date(entry.date).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)}
                           </p>
                         </div>
                       </div>

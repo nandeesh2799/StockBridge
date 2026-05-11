@@ -1,6 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // Import remarkGfm
+import { useTranslation } from "react-i18next";
 import { 
   Send, 
   Bot, 
@@ -18,6 +20,7 @@ import { toast } from "sonner";
 import API from "../api/axiosInstance";
 
 export default function AIChat() {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,7 +84,7 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
       const aiMsg = { 
         id: Date.now() + 1, 
         role: "ai", 
-        text: res.data.data || "I couldn't generate a response." 
+        text: res.data.data || t("ai.errorResponse") 
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (_err) {
@@ -90,7 +93,7 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
         {
           id: Date.now() + 1,
           role: "ai",
-          text: "⚠️ **Connection Error**: I'm having trouble reaching the analytics server. Please check your internet or try again later.",
+          text: `⚠️ **${t("common.error")}**: ${t("ai.connectionError")}`,
         },
       ]);
     } finally {
@@ -102,18 +105,18 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-    toast.success("Copied to clipboard");
+    toast.success(t("common.copied"));
   };
 
   const clearChat = () => {
     setMessages([]);
-    toast.info("Conversation cleared");
+    toast.info(t("ai.cleared"));
   };
 
   const suggestions = [
-    { label: "Today's Summary", prompt: "Give me a summary of today's profit and revenue.", icon: BarChart3 },
-    { label: "Top Products", prompt: "Which products are performing best this week?", icon: TrendingUp },
-    { label: "Inventory Health", prompt: "Tell me about low stock items and what I should reorder.", icon: AlertTriangle },
+    { label: t("ai.summaryLabel"), prompt: t("ai.summaryPrompt"), icon: BarChart3 },
+    { label: t("ai.productsLabel"), prompt: t("ai.productsPrompt"), icon: TrendingUp },
+    { label: t("ai.inventoryLabel"), prompt: t("ai.inventoryPrompt"), icon: AlertTriangle },
   ];
 
   return (
@@ -132,14 +135,14 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
             <h1 className="font-black text-white tracking-tight">StockBridge AI</h1>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Advanced Analysis Active</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t("ai.activeStatus")}</p>
             </div>
           </div>
         </div>
         <button 
           onClick={clearChat}
           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
-          title="Clear Conversation"
+          title={t("ai.clearChat")}
         >
           <Trash2 size={18} />
         </button>
@@ -155,9 +158,9 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
             <div className="w-16 h-16 bg-slate-800/50 rounded-3xl flex items-center justify-center mb-6 border border-slate-700/50">
               <Bot className="text-slate-400" size={32} />
             </div>
-            <h3 className="text-xl font-black text-white mb-2">How can I help you?</h3>
+            <h3 className="text-xl font-black text-white mb-2">{t("ai.welcomeTitle")}</h3>
             <p className="text-sm text-slate-400 font-medium leading-relaxed mb-8">
-              I can analyze your sales, monitor inventory levels, and suggest profit-maximizing strategies.
+              {t("ai.welcomeDesc")}
             </p>
             <div className="grid gap-3 w-full">
               {suggestions.map((s, i) => (
@@ -198,7 +201,7 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
                 : "bg-[#111113] border border-slate-800 text-slate-200 rounded-tl-none"
             }`}>
               <div className="prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown>{msg.text}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
               </div>
 
               {msg.role === "ai" && (
@@ -256,7 +259,7 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
               className="w-full pl-4 pr-4 py-3.5 rounded-2xl bg-[#09090b] border border-slate-800 text-white text-sm font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all placeholder:text-slate-600"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your question about shop performance..."
+              placeholder={t("ai.inputPlaceholder")}
             />
           </div>
           <button
@@ -268,7 +271,7 @@ Instructions: Provide a concise, professional, and data-driven response. Use mar
           </button>
         </form>
         <p className="text-[10px] text-center text-slate-500 font-bold uppercase tracking-widest mt-4">
-          Powered by StockBridge Analytics Engine
+          {t("ai.footer")}
         </p>
       </div>
     </div>

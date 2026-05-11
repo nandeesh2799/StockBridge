@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import API from "../../api/axiosInstance";
 import {
   Plus,
@@ -20,6 +21,33 @@ import {
 } from "lucide-react";
 
 const Inventory = () => {
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language || "en";
+
+  const getItemName = (item) => {
+    if (!item) return "";
+    if (typeof item.name === "object") {
+      return item.name[currentLang] || item.name.en || "";
+    }
+    return item.name || "";
+  };
+
+  const getCategoryName = (item) => {
+    if (!item) return "";
+    if (typeof item.category === "object") {
+      return item.category[currentLang] || item.category.en || "";
+    }
+    return item.category || "";
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat(currentLang === 'en' ? 'en-IN' : currentLang, {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount || 0));
+  };
+
   const { items = [], setItems, sales = [] } = useOutletContext();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
@@ -76,13 +104,6 @@ const Inventory = () => {
 
   const normalizeBarcode = (value = "") => value.trim();
 
-  const normalizeTagValue = (value = "") =>
-    value
-      .replace(/^en:/i, "")
-      .replace(/[-_]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
   const inferUnit = (quantityText = "") => {
     const text = (quantityText || "").toLowerCase();
     if (text.includes("kg") || text.includes("g")) return "kg";
@@ -128,53 +149,53 @@ const Inventory = () => {
     };
   };
 
-  const mapOpenFoodFactsDetails = (barcode, product = {}) => {
-    const p = product.product || {};
-    const name = p.product_name || p.generic_name || "";
-    const quantityText = p.quantity || "";
+  const formDefaultsForBarcodeOnly = (barcode) => ({
+    name: "",
+    barcode,
+    sellingPrice: "",
+    unitType: "piece",
+    lowStockThreshold: 5,
+    taxPercent: 0,
+    hsn: "",
+    batchCostPrice: "",
+    batchQuantity: "",
+    batchExpiryDate: "",
+  });
+
+  /** Maps backend `/items/barcode-lookup` payload into the inventory drawer. */
+  const mapLookupPayloadToForm = (barcode, d) => {
+    const name = (d.name || "").trim();
+    const quantityText = (d.quantityText || "").trim();
     const prices = estimatePricesFromLocalInventory(name);
 
-    // Try to extract price from labels or names if present (crowdsourced data)
     let extractedPrice = "";
-    const priceMatch = name.match(/MRP[:\s]*(\d+)/i) || (p.labels || "").match(/MRP[:\s]*(\d+)/i);
+    const priceMatch = name.match(/MRP[:\s]*(\d+)/i);
     if (priceMatch) extractedPrice = priceMatch[1];
+
+    const apiPrice = d.suggestedSellingPrice;
+    const sellingPrice =
+      extractedPrice ||
+      (apiPrice != null && apiPrice !== ""
+        ? String(apiPrice)
+        : prices.sellingPrice !== ""
+          ? String(prices.sellingPrice)
+          : "");
+
+    const batchCostPrice =
+      prices.purchasePrice !== "" ? String(prices.purchasePrice) : "";
 
     return {
       barcode,
-      name: name,
-      sellingPrice: extractedPrice || prices.sellingPrice,
+      name,
+      sellingPrice,
       unitType: inferUnit(quantityText),
       lowStockThreshold: 5,
       taxPercent: 0,
       hsn: "",
-      batchCostPrice: prices.purchasePrice || (extractedPrice ? Math.round(extractedPrice * 0.8) : ""),
+      batchCostPrice,
       batchQuantity: "",
       batchExpiryDate: "",
     };
-  };
-
-  const fetchProductFromAllSources = async (barcode) => {
-    const sources = [
-      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
-      `https://world.openproductsfacts.org/api/v0/product/${barcode}.json`,
-      `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`,
-    ];
-
-    for (const url of sources) {
-      try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(id);
-        const data = await res.json();
-        if (data && data.status === 1 && data.product) {
-          return { product: data.product, source: url.split(".")[1] };
-        }
-      } catch (err) {
-        continue;
-      }
-    }
-    return null;
   };
 
   async function handleScan(rawBarcode) {
@@ -190,18 +211,31 @@ const Inventory = () => {
 
     setPendingBarcodeLookup(true);
     try {
-      const result = await fetchProductFromAllSources(barcode);
-      if (result) {
-        const details = mapOpenFoodFactsDetails(barcode, result);
-        setFormData(details);
-        toast.success(`Product identified via ${result.source}!`);
+      const res = await API.get(
+        `/items/barcode-lookup/${encodeURIComponent(barcode)}`,
+      );
+      if (res.data?.success && res.data?.data) {
+        setFormData(mapLookupPayloadToForm(barcode, res.data.data));
+        toast.success(
+          res.data.cached
+            ? `Product loaded (cache) — ${res.data.source}`
+            : `Product found online — ${res.data.source}`,
+        );
         setIsDrawerOpen(true);
       } else {
-        setFormData((prev) => ({ ...prev, barcode }));
+        toast.error(
+          "No online match for this barcode. Enter details manually.",
+        );
+        setFormData(formDefaultsForBarcodeOnly(barcode));
         setIsDrawerOpen(true);
       }
-    } catch {
-      setFormData((prev) => ({ ...prev, barcode }));
+    } catch (error) {
+      const data = error.response?.data;
+      const message =
+        data?.message ||
+        "No online match for this barcode. Enter details manually.";
+      toast.error(message);
+      setFormData(formDefaultsForBarcodeOnly(barcode));
       setIsDrawerOpen(true);
     } finally {
       setPendingBarcodeLookup(false);
@@ -458,12 +492,12 @@ const Inventory = () => {
       !formData.batchCostPrice ||
       !formData.batchQuantity
     ) {
-      toast.error("Required fields missing!");
+      toast.error(t("validation.missingRequiredFields"));
       return;
     }
     setIsSubmitting(true);
     const payload = {
-      name: formData.name,
+      name: typeof formData.name === 'string' ? { [currentLang]: formData.name } : formData.name,
       barcode: formData.barcode.trim(),
       unit: formData.unitType,
       alertQuantity: Number(formData.lowStockThreshold),
@@ -486,15 +520,15 @@ const Inventory = () => {
         setItems((prev) =>
           prev.map((i) => (i._id === editingItemId ? res.data.data : i)),
         );
-        toast.success("Item updated successfully");
+        toast.success(t("toast.itemUpdated"));
       } else {
         const res = await API.post("/items", payload);
-        setItems((prev) => [...prev, res.data.data]);
-        toast.success("Item added successfully");
+        setItems((prev) => [res.data.data, ...prev]);
+        toast.success(t("toast.itemAdded"));
       }
       resetForm();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error saving item");
+      toast.error(error.response?.data?.message || t("common.errorSaving"));
     } finally {
       setIsSubmitting(false);
     }
@@ -504,9 +538,9 @@ const Inventory = () => {
     try {
       await API.delete(`/items/${deleteId}`);
       setItems((prev) => prev.filter((item) => item._id !== deleteId));
-      toast.success("Item deleted");
+      toast.success(t("common.itemDeleted"));
     } catch {
-      toast.error("Failed to delete item");
+      toast.error(t("common.errorDeleting"));
     } finally {
       setDeleteId(null);
     }
@@ -533,7 +567,7 @@ const Inventory = () => {
 
   const handleBulkApply = async () => {
     if (!selectedItemIds.length) {
-      toast.error("Select at least one item for bulk update.");
+      toast.error(t("toast.bulkUpdateSelectAtLeastOne"));
       return;
     }
     const hasAnyUpdate =
@@ -541,7 +575,7 @@ const Inventory = () => {
       bulkValues.taxPercent !== "" ||
       bulkValues.lowStockThreshold !== "";
     if (!hasAnyUpdate) {
-      toast.error("Add at least one change to apply.");
+      toast.error(t("toast.bulkUpdateNoChange"));
       return;
     }
 
@@ -595,10 +629,10 @@ const Inventory = () => {
       setItems((prev) =>
         prev.map((item) => (updatedMap.has(item._id) ? updatedMap.get(item._id) : item)),
       );
-      toast.success(`Bulk updated ${updatedMap.size} items.`);
+      toast.success(t("toast.bulkUpdateSuccess", { count: updatedMap.size }));
       resetBulkPanel();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Bulk update failed.");
+      toast.error(error.response?.data?.message || t("toast.error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -608,9 +642,9 @@ const Inventory = () => {
     <div className="text-white space-y-6 bg-transparent min-h-dvh pb-24">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight">Inventory</h1>
+          <h1 className="text-2xl font-black tracking-tight">{t("inventory.title")}</h1>
           <p className="text-sm text-slate-400 font-medium mt-0.5">
-            Manage your products and batches.
+            {t("inventory.manageInventoryDesc")}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -618,25 +652,25 @@ const Inventory = () => {
             onClick={() => {
               setBarcodeMode(!barcodeMode);
               toast.info(
-                barcodeMode ? "Scanner OFF" : "Scanner ON — scan any barcode!",
+                barcodeMode ? t("inventory.scannerOff") : t("inventory.scannerOn") + " — scan any barcode!",
               );
             }}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${barcodeMode ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-slate-800 text-slate-400 border border-transparent"}`}
           >
-            <Zap size={16} /> {barcodeMode ? "Scanner ON" : "Enable Scanner"}
+            <Zap size={16} /> {barcodeMode ? t("inventory.scannerOn") : t("inventory.enableScanner")}
           </button>
           <button
             onClick={() => setShowBulkPanel(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-800 transition-colors"
           >
             <UploadCloud size={16} />{" "}
-            <span className="hidden sm:inline">Bulk Update</span>
+            <span className="hidden sm:inline">{t("inventory.bulkUpdate")}</span>
           </button>
           <button
             onClick={() => setIsDrawerOpen(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
           >
-            <Plus size={18} /> Add Item
+            <Plus size={18} /> {t("inventory.addItem")}
           </button>
         </div>
       </div>
@@ -650,7 +684,7 @@ const Inventory = () => {
             />
             <input
               type="text"
-              placeholder="Search Items"
+              placeholder={t("common.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500 transition-colors text-white shadow-sm"
@@ -662,9 +696,9 @@ const Inventory = () => {
               onChange={(e) => setSortBy(e.target.value)}
               className="w-full sm:w-48 appearance-none pl-4 pr-10 py-2.5 bg-[#111113] border border-slate-800 rounded-xl text-sm font-bold text-slate-300 focus:outline-none cursor-pointer"
             >
-              <option value="recent">Recently Added</option>
-              <option value="low_stock">Low Stock First</option>
-              <option value="high_value">High Value First</option>
+              <option value="recent">{t("inventory.recentlyAdded")}</option>
+              <option value="low_stock">{t("inventory.lowStockFirst")}</option>
+              <option value="high_value">{t("inventory.highValueFirst")}</option>
             </select>
             <ArrowUpDown
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
@@ -808,12 +842,12 @@ const Inventory = () => {
           />
           <div className="fixed top-0 right-0 h-dvh w-full sm:w-100 bg-[#111113] border-l border-slate-800 p-6 pb-24 z-50 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300">
             <h2 className="text-2xl font-black text-white mb-6">
-              {editingItemId ? "Edit Item" : "Add New Item"}
+              {editingItemId ? t("inventory.editItem") : t("inventory.addProduct")}
             </h2>
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block tracking-wider">
-                  Item Name
+                  {t("inventory.itemName")}
                 </label>
                 <input
                   name="name"
@@ -826,7 +860,7 @@ const Inventory = () => {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-slate-400 uppercase block tracking-wider">
-                    Barcode
+                    {t("inventory.barcode")}
                   </label>
                   {formData.barcode && (
                     <a
@@ -835,13 +869,13 @@ const Inventory = () => {
                       rel="noopener noreferrer"
                       className="text-[10px] text-indigo-400 font-bold hover:underline"
                     >
-                      Search Price Online
+                      {t("inventory.searchPriceOnline")}
                     </a>
                   )}
                 </div>
                 <input
                   name="barcode"
-                  placeholder="Scan or type barcode"
+                  placeholder={t("inventory.scanBarcodePlaceholder")}
                   value={formData.barcode}
                   onChange={handleChange}
                   className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500"
@@ -850,7 +884,7 @@ const Inventory = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                    Selling Price
+                    {t("inventory.price")}
                   </label>
                   <input
                     name="sellingPrice"
@@ -863,7 +897,7 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                    Unit Type
+                    {t("inventory.unitType")}
                   </label>
                   <select
                     name="unitType"
@@ -871,17 +905,17 @@ const Inventory = () => {
                     onChange={handleChange}
                     className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none"
                   >
-                    <option value="piece">Piece</option>
-                    <option value="kg">Kg</option>
-                    <option value="litre">Litre</option>
-                    <option value="box">Box</option>
+                    <option value="piece">{t("inventory.piece")}</option>
+                    <option value="kg">{t("inventory.kg")}</option>
+                    <option value="litre">{t("inventory.litre")}</option>
+                    <option value="box">{t("inventory.box")}</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                    Alert Quantity
+                    {t("inventory.alertQuantity")}
                   </label>
                   <input
                     name="lowStockThreshold"
@@ -893,7 +927,7 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                    GST %
+                    {t("inventory.taxPercent")}
                   </label>
                   <select
                     name="taxPercent"
@@ -911,11 +945,11 @@ const Inventory = () => {
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                  HSN Code
+                  {t("inventory.hsnCode")}
                 </label>
                 <input
                   name="hsn"
-                  placeholder="Optional"
+                  placeholder={t("inventory.optional")}
                   value={formData.hsn}
                   onChange={handleChange}
                   className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none"
@@ -923,12 +957,12 @@ const Inventory = () => {
               </div>
               <div className="border-t border-slate-800 pt-4 mt-2">
                 <h3 className="text-sm font-bold text-indigo-400 mb-4 uppercase tracking-widest">
-                  Initial Batch Info
+                  {t("inventory.initialBatchInfo")}
                 </h3>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                      Purchase Price
+                      {t("inventory.purchasePrice")}
                     </label>
                     <input
                       name="batchCostPrice"
@@ -941,7 +975,7 @@ const Inventory = () => {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                      Current Quantity
+                      {t("inventory.currentQuantity")}
                     </label>
                     <input
                       name="batchQuantity"
@@ -955,7 +989,7 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                    Expiry Date
+                    {t("inventory.expiryDate")}
                   </label>
                   <input
                     name="batchExpiryDate"
@@ -971,14 +1005,14 @@ const Inventory = () => {
                   onClick={resetForm}
                   className="flex-1 py-3.5 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-colors"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={handleSaveItem}
                   disabled={isSubmitting}
                   className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg active:scale-95 transition-all"
                 >
-                  {isSubmitting ? "Saving..." : "Save Item"}
+                  {isSubmitting ? t("settings.saving") : t("common.save")}
                 </button>
               </div>
             </div>
@@ -993,7 +1027,7 @@ const Inventory = () => {
             onClick={() => setDeleteId(null)}
           />
           <div className="bg-[#111113] border border-slate-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl relative">
-            <h3 className="text-xl font-black text-white mb-2">Delete Item?</h3>
+            <h3 className="text-xl font-black text-white mb-2">{t("inventory.deleteItem")}</h3>
             <p className="text-slate-400 text-sm">
               Are you sure you want to remove this item? This action cannot be
               undone.
@@ -1024,7 +1058,7 @@ const Inventory = () => {
           />
           <div className="relative w-full max-w-xl bg-[#111113] border border-slate-800 rounded-3xl p-6 sm:p-7 space-y-5">
             <div>
-              <h3 className="text-xl font-black text-white">Bulk Update Items</h3>
+              <h3 className="text-xl font-black text-white">{t("inventory.bulkUpdate")}</h3>
               <p className="text-sm text-slate-400 mt-1">
                 Select items below, then apply common updates in one action.
               </p>
@@ -1032,7 +1066,7 @@ const Inventory = () => {
 
             <div className="max-h-52 overflow-y-auto border border-slate-800 rounded-xl divide-y divide-slate-800">
               {filteredItems.length === 0 ? (
-                <p className="p-3 text-sm text-slate-500">No matching items found.</p>
+                <p className="p-3 text-sm text-slate-500">{t("common.noData")}</p>
               ) : (
                 filteredItems.map((item) => (
                   <label
@@ -1071,8 +1105,8 @@ const Inventory = () => {
                   }
                   className="w-full p-3 rounded-xl bg-[#09090b] border border-slate-700 text-white"
                 >
-                  <option value="percent">Percent (%)</option>
-                  <option value="fixed">Fixed Amount (₹)</option>
+                  <option value="percent">{t("inventory.percent")}</option>
+                  <option value="fixed">{t("inventory.fixedAmount")}</option>
                 </select>
               </div>
               <div>

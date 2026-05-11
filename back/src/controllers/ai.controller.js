@@ -72,9 +72,16 @@ const getShopSnapshot = async (shopId) => {
   };
 };
 
+const aiLanguagePrompts = {
+  en: "Respond in professional English for retail business owners.",
+  hi: "भारत के दुकानदारों के लिए सरल हिंदी में उत्तर दें (Respond in simple Hindi suitable for Indian shopkeepers).",
+  kn: "ಕನ್ನಡದ ಅಂಗಡಿಕಾರರಿಗೆ ಸೂಕ್ತವಾದ ಸರಳ ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ (Respond in simple Kannada suitable for shopkeepers).",
+};
+
 export const getGeminiInsights = async (req, res) => {
   try {
     const { prompt } = req.body;
+    const lang = req.language || "en";
 
     if (!prompt) {
       return res.status(400).json({
@@ -90,7 +97,7 @@ export const getGeminiInsights = async (req, res) => {
         message: "Shop context missing. Please login again.",
       });
     }
-    const cacheKey = `${shopId}_${prompt}`;
+    const cacheKey = `${shopId}_${prompt}_${lang}`;
 
     const cached = insightCache.get(cacheKey);
     if (cached && Date.now() - cached.time < 10 * 60 * 1000) {
@@ -102,6 +109,23 @@ export const getGeminiInsights = async (req, res) => {
     }
 
     const snapshot = await getShopSnapshot(shopId);
+
+    // Map multilingual names to current language for AI context
+    const localizedSnapshot = {
+      ...snapshot,
+      inventoryItemNames: snapshot.inventoryItemNames.map((name) => 
+        typeof name === "object" ? (name[lang] || name.en) : name
+      ),
+      lowStockItems: snapshot.lowStockItems.map((item) => ({
+        ...item,
+        name: typeof item.name === "object" ? (item.name[lang] || item.name.en) : item.name,
+      })),
+      topItems: snapshot.topItems.map((item) => ({
+        ...item,
+        name: typeof item.name === "object" ? (item.name[lang] || item.name.en) : item.name,
+      })),
+    };
+
     console.time("AI Response");
 
     const completion = await groq.chat.completions.create({
@@ -113,8 +137,7 @@ export const getGeminiInsights = async (req, res) => {
 You are a professional retail business analytics assistant.
 
 IMPORTANT RULES:
-- Respond ONLY in English
-- Do NOT use Hindi or any other language
+- ${aiLanguagePrompts[lang]}
 - Keep responses clear, concise, and professional
 - Use Indian currency format (₹) when needed
 - Answer only using the provided shop data context
@@ -127,18 +150,18 @@ IMPORTANT RULES:
           role: "user",
           content: `
 SHOP DATA CONTEXT:
-${JSON.stringify(snapshot)}
+${JSON.stringify(localizedSnapshot)}
 
 USER QUESTION:
 ${prompt}
 
 IMPORTANT:
-Respond strictly in English only. No Hindi.
-If data is unavailable for a request, clearly say it is not available.
+Respond strictly in the requested language: ${lang}.
+If data is unavailable for a request, clearly say it is not available in ${lang}.
 `,
         },
       ],
-      max_tokens: 260,
+      max_tokens: 500,
       temperature: 0.5,
     });
 

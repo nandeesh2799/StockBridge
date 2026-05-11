@@ -4,6 +4,7 @@ import {
   getSuppliers,
   updateSupplier,
   recordPurchase,
+  paySupplierDue,
   deleteSupplier,
 } from "../controllers/supplier.controller.js";
 import { protect, authorize } from "../middlewares/auth.middleware.js";
@@ -19,5 +20,6 @@ router
   .put(authorize("owner", "manager"), updateSupplier)
   .delete(authorize("owner"), deleteSupplier);
 router.post("/:id/purchase", authorize("owner", "manager"), recordPurchase);
+router.post("/:id/pay-due", authorize("owner", "manager"), paySupplierDue);
 
 export default router;

@@ -19,6 +19,7 @@ import staffRoutes from "./src/routes/staff.routes.js";
 // Middlewares
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { apiLimiter } from "./src/middlewares/rateLimiter.js";
+import { languageMiddleware } from "./src/middlewares/language.middleware.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -35,6 +36,7 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(morgan("dev"));
+app.use(languageMiddleware);
 app.use("/api", apiLimiter);
 
 // 2. API ROUTES

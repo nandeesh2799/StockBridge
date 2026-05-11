@@ -9,18 +9,21 @@ const itemSchema = new mongoose.Schema(
       index: true,
     },
     name: {
-      type: String,
-      required: [true, "Item name is required"],
-      trim: true,
+      en: { type: String, required: true, trim: true },
+      hi: { type: String, trim: true },
+      kn: { type: String, trim: true },
     },
-    category: { type: String, default: "General" },
+    category: {
+      en: { type: String, default: "General" },
+      hi: { type: String, default: "सामान्य" },
+      kn: { type: String, default: "ಸಾಮಾನ್ಯ" },
+    },
     unit: { type: String, required: true },
 
     taxPercent: { type: Number, default: 0 },
     hsn: { type: String, default: "" },
     barcode: {
       type: String,
-      unique: true,
       index: true,
       sparse: true,
       trim: true,
@@ -57,4 +60,7 @@ const itemSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+itemSchema.index({ shop: 1, barcode: 1 }, { unique: true, sparse: true });
+
 export default mongoose.model("Item", itemSchema);

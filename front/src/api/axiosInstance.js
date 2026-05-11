@@ -1,4 +1,5 @@
 import axios from "axios";
+import i18n from "../i18n/i18n";
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1",
@@ -10,6 +11,8 @@ API.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Add language header
+    config.headers["x-language"] = i18n.language || "en";
     return config;
   },
   (error) => Promise.reject(error),

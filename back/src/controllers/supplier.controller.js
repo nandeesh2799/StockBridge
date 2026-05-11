@@ -112,6 +112,24 @@ export const recordPurchase = async (req, res) => {
         .json({ success: false, message: "At least one item is required." });
     }
 
+    const parsedTotalAmount = Number(totalAmount || 0);
+    const parsedAmountPaid = Number(amountPaid || 0);
+    if (!Number.isFinite(parsedTotalAmount) || parsedTotalAmount <= 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Total amount must be greater than 0." });
+    }
+    if (
+      !Number.isFinite(parsedAmountPaid) ||
+      parsedAmountPaid < 0 ||
+      parsedAmountPaid > parsedTotalAmount
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount paid must be between 0 and total amount.",
+      });
+    }
+
     // OPTIMIZED: Fetch all items in ONE query instead of one per loop iteration
     const itemIds = items.filter((i) => i.itemId).map((i) => i.itemId);
 
@@ -146,14 +164,14 @@ export const recordPurchase = async (req, res) => {
     // Log purchase on supplier
     supplier.purchaseHistory.push({
       items,
-      totalAmount,
-      amountPaid: amountPaid || 0,
+      totalAmount: parsedTotalAmount,
+      amountPaid: parsedAmountPaid,
       invoiceNumber: invoiceNumber || "",
       notes: notes || "",
     });
 
-    supplier.totalPurchased += totalAmount;
-    supplier.totalDue += totalAmount - (amountPaid || 0);
+    supplier.totalPurchased += parsedTotalAmount;
+    supplier.totalDue += parsedTotalAmount - parsedAmountPaid;
 
     await supplier.save();
 
@@ -168,6 +186,46 @@ export const recordPurchase = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @route   POST /api/v1/suppliers/:id/pay-due
+export const paySupplierDue = async (req, res) => {
+  try {
+    const supplier = await Supplier.findOne({
+      _id: req.params.id,
+      shop: req.shop.id,
+    });
+    if (!supplier)
+      return res
+        .status(404)
+        .json({ success: false, message: "Supplier not found." });
+
+    const amount = Number(req.body?.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Enter a valid payment amount." });
+    }
+    if (amount > supplier.totalDue) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment amount cannot exceed current due.",
+      });
+    }
+
+    supplier.totalDue = Math.max(0, Number(supplier.totalDue || 0) - amount);
+    await supplier.save();
+
+    cache.invalidate(`suppliers:${req.shop.id}`);
+
+    return res.status(200).json({
+      success: true,
+      data: supplier,
+      message: "Due payment recorded successfully.",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

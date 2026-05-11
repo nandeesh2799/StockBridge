@@ -1,34 +1,42 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Wallet, X } from "lucide-react";
+import { Plus, Trash2, Wallet, X, Edit2 } from "lucide-react";
 import API from "../../api/axiosInstance";
 
-const CATEGORIES = [
-  "Rent",
-  "Salary",
-  "Electricity",
-  "Transport",
-  "Maintenance",
-  "Marketing",
-  "Purchase",
-  "Other",
-];
-const PAYMENT_METHODS = ["Cash", "UPI", "Bank Transfer", "Other"];
-
 const Expenses = () => {
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language || "en";
+  
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
   const [byCategory, setByCategory] = useState({});
-  const [form, setForm] = useState({
+  
+  const CATEGORIES = [
+    "Rent",
+    "Salary",
+    "Electricity",
+    "Transport",
+    "Maintenance",
+    "Marketing",
+    "Purchase",
+    "Other",
+  ];
+  const PAYMENT_METHODS = ["Cash", "UPI", "Bank Transfer", "Other"];
+  const AUTO_PURCHASE_PREFIX = "Stock purchase:";
+  
+  const defaultForm = {
     category: "Rent",
     amount: "",
     description: "",
     date: "",
     paymentMethod: "Cash",
-  });
+  };
+  
+  const [form, setForm] = useState(defaultForm);
 
   const fetchExpenses = async () => {
     try {
@@ -37,7 +45,7 @@ const Expenses = () => {
       setTotalAmount(res.data.totalAmount || 0);
       setByCategory(res.data.byCategory || {});
     } catch {
-      toast.error("Failed to load expenses.");
+      toast.error(t("toast.error"));
     } finally {
       setLoading(false);
     }
@@ -49,30 +57,67 @@ const Expenses = () => {
 
   const handleAdd = async () => {
     if (!form.amount || Number(form.amount) <= 0)
-      return toast.error("Enter a valid amount.");
+      return toast.error(t("validation.invalidAmount"));
     setIsSubmitting(true);
     try {
-      const res = await API.post("/expenses", form);
-      setExpenses((prev) => [res.data.data, ...prev]);
-      setTotalAmount((prev) => prev + Number(form.amount));
-      setByCategory((prev) => ({
-        ...prev,
-        [form.category]: (prev[form.category] || 0) + Number(form.amount),
-      }));
-      toast.success("Expense recorded!");
-      setForm({
-        category: "Rent",
-        amount: "",
-        description: "",
-        date: "",
-        paymentMethod: "Cash",
-      });
+      if (editingExpenseId) {
+        const original = expenses.find((expense) => expense._id === editingExpenseId);
+        const res = await API.put(`/expenses/${editingExpenseId}`, form);
+        const updatedExpense = res.data.data;
+        setExpenses((prev) =>
+          prev.map((expense) =>
+            expense._id === editingExpenseId ? updatedExpense : expense,
+          ),
+        );
+
+        const oldAmount = Number(original?.amount || 0);
+        const newAmount = Number(updatedExpense.amount || 0);
+        setTotalAmount((prev) => prev - oldAmount + newAmount);
+        setByCategory((prev) => {
+          const next = { ...prev };
+          if (original?.category) {
+            next[original.category] = Math.max(
+              0,
+              (next[original.category] || 0) - oldAmount,
+            );
+          }
+          next[updatedExpense.category] =
+            (next[updatedExpense.category] || 0) + newAmount;
+          return next;
+        });
+        toast.success(t("toast.expenseUpdated"));
+      } else {
+        const res = await API.post("/expenses", form);
+        setExpenses((prev) => [res.data.data, ...prev]);
+        setTotalAmount((prev) => prev + Number(form.amount));
+        setByCategory((prev) => ({
+          ...prev,
+          [form.category]: (prev[form.category] || 0) + Number(form.amount),
+        }));
+        toast.success(t("toast.expenseRecorded"));
+      }
+      setForm(defaultForm);
+      setEditingExpenseId(null);
       setIsDrawerOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to add expense.");
+      toast.error(
+        err.response?.data?.message || t("toast.error"),
+      );
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEdit = (expense) => {
+    setEditingExpenseId(expense._id);
+    setForm({
+      category: expense.category || "Other",
+      amount: String(expense.amount ?? ""),
+      description: expense.description || "",
+      date: expense.date ? new Date(expense.date).toISOString().split("T")[0] : "",
+      paymentMethod: expense.paymentMethod || "Cash",
+    });
+    setIsDrawerOpen(true);
   };
 
   const handleDelete = async (id, amount, category) => {
@@ -84,10 +129,18 @@ const Expenses = () => {
         ...prev,
         [category]: Math.max(0, (prev[category] || 0) - amount),
       }));
-      toast.success("Expense deleted.");
+      toast.success(t("toast.expenseDeleted"));
     } catch {
-      toast.error("Failed to delete expense.");
+      toast.error(t("toast.error"));
     }
+  };
+
+  const fmt = (n) => {
+    return new Intl.NumberFormat(currentLang === 'en' ? 'en-IN' : currentLang, {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(Math.round(n || 0));
   };
 
   const categoryColors = {
@@ -101,6 +154,11 @@ const Expenses = () => {
     Other: "text-slate-400 bg-slate-500/10 border-slate-500/20",
   };
 
+  const isAutoInventoryExpense = (expense) =>
+    expense?.category === "Purchase" &&
+    typeof expense?.description === "string" &&
+    expense.description.startsWith(AUTO_PURCHASE_PREFIX);
+
   return (
     <div className="text-white space-y-6 bg-transparent min-h-screen pb-24">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -113,7 +171,11 @@ const Expenses = () => {
           </p>
         </div>
         <button
-          onClick={() => setIsDrawerOpen(true)}
+          onClick={() => {
+            setEditingExpenseId(null);
+            setForm(defaultForm);
+            setIsDrawerOpen(true);
+          }}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold shadow-md active:scale-95 transition-all"
         >
           <Plus size={18} /> Add Expense
@@ -168,19 +230,32 @@ const Expenses = () => {
                     {expense.category}
                   </span>
                   <div>
-                    <p className="font-bold text-white">
-                      {expense.description || expense.category}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-white">
+                        {expense.description || expense.category}
+                      </p>
+                      {isAutoInventoryExpense(expense) && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
+                          Auto from Inventory
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {new Date(expense.date).toLocaleDateString("en-IN")} ·{" "}
                       {expense.paymentMethod}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                   <p className="font-black text-rose-400 text-lg">
                     ₹{new Intl.NumberFormat("en-IN").format(expense.amount)}
                   </p>
+                  <button
+                    onClick={() => handleEdit(expense)}
+                    className="p-2 text-slate-500 hover:text-indigo-400 bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <Edit2 size={16} />
+                  </button>
                   <button
                     onClick={() =>
                       handleDelete(
@@ -203,14 +278,24 @@ const Expenses = () => {
       {isDrawerOpen && (
         <>
           <div
-            onClick={() => setIsDrawerOpen(false)}
+            onClick={() => {
+              setIsDrawerOpen(false);
+              setEditingExpenseId(null);
+              setForm(defaultForm);
+            }}
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           />
           <div className="fixed top-0 right-0 h-dvh w-full sm:w-96 panel-tech border-l p-6 pb-24 z-50 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black text-white">Add Expense</h2>
+              <h2 className="text-xl font-black text-white">
+                {editingExpenseId ? "Edit Expense" : "Add Expense"}
+              </h2>
               <button
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  setEditingExpenseId(null);
+                  setForm(defaultForm);
+                }}
                 className="text-slate-400 hover:text-white"
               >
                 <X size={20} />
@@ -288,7 +373,11 @@ const Expenses = () => {
               </div>
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={() => setIsDrawerOpen(false)}
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    setEditingExpenseId(null);
+                    setForm(defaultForm);
+                  }}
                   className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl"
                 >
                   Cancel
@@ -298,7 +387,11 @@ const Expenses = () => {
                   disabled={isSubmitting}
                   className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl disabled:opacity-50"
                 >
-                  {isSubmitting ? "Saving..." : "Add Expense"}
+                  {isSubmitting
+                    ? "Saving..."
+                    : editingExpenseId
+                      ? "Update Expense"
+                      : "Add Expense"}
                 </button>
               </div>
             </div>

@@ -16,8 +16,10 @@ import {
 import { toast } from "sonner";
 import { Bot } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [brandLogo, setBrandLogo] = useState(null);
@@ -27,68 +29,68 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
   const allNavItems = [
     {
-      name: "Dashboard",
+      name: t("common.dashboard"),
       path: "/dashboard",
       icon: LayoutDashboard,
       roles: ["owner", "manager", "cashier"],
     },
     {
-      name: "Inventory",
+      name: t("common.inventory"),
       path: "/dashboard/inventory",
       icon: PackageSearch,
       roles: ["owner", "manager"],
     },
   
     {
-      name: "AI Assistant",
+      name: t("common.aiAssistant"),
       path: "/dashboard/ai-chat",
       icon: Bot,
       roles: ["owner", "manager", "staff"] // ✅ ADD THIS
     },
     {
-      name: "POS",
+      name: t("billing.pos"),
       path: "/dashboard/pos",
       icon: ShoppingCart,
       roles: ["owner", "manager", "cashier"],
     },
     {
-      name: "Khata",
+      name: t("customers.title"),
       path: "/dashboard/khata",
       icon: Users,
       roles: ["owner", "manager", "cashier"],
     },
     {
-      name: "Expenses",
+      name: t("common.expenses"),
       path: "/dashboard/expenses",
       icon: Wallet,
       roles: ["owner", "manager"],
     },
     {
-      name: "Suppliers",
+      name: t("common.suppliers"),
       path: "/dashboard/suppliers",
       icon: Truck,
       roles: ["owner", "manager"],
     },
     {
-      name: "Reports",
+      name: t("common.reports"),
       path: "/dashboard/reports",
       icon: FileText,
       roles: ["owner", "manager"],
     },
     {
-      name: "Stock Adjustment",
+      name: t("common.stockAdjustment"),
       path: "/dashboard/stock-adjustment",
       icon: Settings2,
       roles: ["owner", "manager"],
     },
     {
-      name: "Staff",
+      name: t("common.staff"),
       path: "/dashboard/staff",
       icon: UserCog,
       roles: ["owner"],
     },
     {
-      name: "Settings",
+      name: t("common.settings"),
       path: "/dashboard/settings",
       icon: Settings,
       roles: ["owner"],
@@ -124,7 +126,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     localStorage.removeItem("retailflow_token");
     localStorage.removeItem("retailflow_shop");
     localStorage.removeItem("retailflow_role");
-    toast.success("Logged out from StockBridge");
+    toast.success(t("common.logoutSuccess"));
     navigate("/login");
   };
 
@@ -141,7 +143,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
         className={`fixed md:static top-0 left-0 h-screen w-64 bg-[#111113] border-r border-slate-800/50 p-4 sm:p-5 transform transition-all duration-300 z-50 flex flex-col shadow-2xl md:shadow-none ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         <div className="flex justify-between items-center mb-8 md:hidden">
-          <h2 className="text-lg font-bold text-white">StockBridge Menu</h2>
+          <h2 className="text-lg font-bold text-white tracking-widest uppercase">{t("common.actions")}</h2>
           <button
             onClick={() => setSidebarOpen(false)}
             className="text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-lg"
@@ -196,7 +198,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-black text-rose-400 hover:bg-rose-500/10"
           >
             <LogOut size={18} />
-            {"Logout"}
+            {t("common.logout")}
           </button>
         </div>
       </div>

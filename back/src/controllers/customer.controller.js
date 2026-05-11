@@ -197,9 +197,13 @@ export const scheduleReminder = async (req, res) => {
 
     const { scheduledDate } = req.body;
 
-    customer.nextReminderDate = scheduledDate
-      ? new Date(scheduledDate)
-      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    if (scheduledDate === null) {
+      customer.nextReminderDate = null;
+    } else {
+      customer.nextReminderDate = scheduledDate
+        ? new Date(scheduledDate)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
     await customer.save();
 
     cache.invalidate(`customers:${req.shop.id}`);
@@ -222,7 +226,7 @@ export const getRemindersDue = async (req, res) => {
     const customers = await Customer.find({
       shop: req.shop.id,
       totalCredit: { $gt: 0 },
-      nextReminderDate: { $lte: today },
+      nextReminderDate: { $ne: null, $lte: today },
     }).lean();
 
     res
