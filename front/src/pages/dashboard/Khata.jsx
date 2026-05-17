@@ -14,7 +14,7 @@ import API from "../../api/axiosInstance";
 import jsPDF from "jspdf";
 
 const Khata = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { customers, setCustomers, shopProfile } = useOutletContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -160,7 +160,6 @@ const Khata = () => {
       doc.text(new Date(entry.date).toLocaleDateString(currentLang), 20, y);
       doc.text(
         entry.transactionType === "CREDIT_GIVEN" ||
-        entry.transactionType === "CREDIT_GIVEN" ||
         entry.transactionType === "GIVEN_UDHAAR"
           ? t("customers.creditGiven")
           : t("customers.paymentReceived"),
@@ -188,7 +187,7 @@ const Khata = () => {
         <p className="text-sm text-slate-400 mt-0.5">{t("khata.subtitle")}</p>
         <div className="mt-4 inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-2 rounded-xl text-sm font-bold">
           {t("khata.totalOutstanding")}: ₹
-          {new Intl.NumberFormat("en-IN").format(totalOutstanding)}
+          {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(totalOutstanding)}
         </div>
       </div>
 
@@ -223,8 +222,8 @@ const Khata = () => {
                     <p className="text-xs text-slate-500">{customer.phone}</p>
                     {customer.creditLimit > 0 && (
                       <p className="text-xs text-amber-400 mt-0.5">
-                        Limit: ₹
-                        {new Intl.NumberFormat("en-IN").format(
+                        {t("dashboard.limit")}: ₹
+                        {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(
                           customer.creditLimit,
                         )}
                       </p>
@@ -235,7 +234,7 @@ const Khata = () => {
                   <div className="text-right">
                     <p className="font-black text-rose-400">
                       ₹
-                      {new Intl.NumberFormat("en-IN").format(
+                      {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(
                         customer.totalCredit,
                       )}
                     </p>
@@ -278,18 +277,18 @@ const Khata = () => {
 
             <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 text-center">
               <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                Outstanding
+                {t("khata.totalOutstanding")}
               </p>
               <p className="text-3xl font-black text-rose-400">
                 ₹
-                {new Intl.NumberFormat("en-IN").format(
+                {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(
                   selectedCustomer.totalCredit,
                 )}
               </p>
               {selectedCustomer.creditLimit > 0 && (
                 <p className="text-xs text-slate-400 mt-1">
                   {t("dashboard.limit")}: ₹
-                  {new Intl.NumberFormat("en-IN").format(
+                  {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(
                     selectedCustomer.creditLimit,
                   )}
                 </p>
@@ -345,7 +344,7 @@ const Khata = () => {
                 </h4>
                 {selectedCustomer.nextReminderDate && (
                   <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold">
-                    {t("khata.scheduled")}: {new Date(selectedCustomer.nextReminderDate).toLocaleDateString("en-IN")}
+                    {t("khata.scheduled")}: {new Date(selectedCustomer.nextReminderDate).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)}
                   </span>
                 )}
               </div>

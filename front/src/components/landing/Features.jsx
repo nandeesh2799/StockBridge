@@ -7,65 +7,68 @@ import {
   Smartphone,
   ArrowRight,
 } from "lucide-react";
-
-const features = [
-  {
-    icon: Zap,
-    title: "Fast Billing",
-    label: "POS",
-    desc: "Bill customers in seconds. Split payments across cash, UPI and credit. Generate professional invoices with QR codes.",
-    accent: "#6366f1",
-    bg: "from-indigo-500/10 to-transparent",
-    border: "border-indigo-500/20 hover:border-indigo-500/50",
-  },
-  {
-    icon: BookOpenCheck,
-    title: "Digital Khata",
-    label: "Credit",
-    desc: "Track credit digitally. Send WhatsApp payment reminders with UPI links. Set credit limits per customer.",
-    accent: "#f59e0b",
-    bg: "from-amber-500/10 to-transparent",
-    border: "border-amber-500/20 hover:border-amber-500/50",
-  },
-  {
-    icon: PackageSearch,
-    title: "Smart Inventory",
-    label: "Stock",
-    desc: "Know your stock at all times. Get low stock alerts before you run out. Track batches and expiry dates.",
-    accent: "#10b981",
-    bg: "from-emerald-500/10 to-transparent",
-    border: "border-emerald-500/20 hover:border-emerald-500/50",
-  },
-  {
-    icon: BarChart3,
-    title: "Profit Analytics",
-    label: "Reports",
-    desc: "See daily and monthly profit, revenue trends, and top-selling items in one clean dashboard.",
-    accent: "#f43f5e",
-    bg: "from-rose-500/10 to-transparent",
-    border: "border-rose-500/20 hover:border-rose-500/50",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Secure & Encrypted",
-    label: "Security",
-    desc: "Your data is encrypted end-to-end and backed up automatically. Role-based access for staff.",
-    accent: "#0ea5e9",
-    bg: "from-sky-500/10 to-transparent",
-    border: "border-sky-500/20 hover:border-sky-500/50",
-  },
-  {
-    icon: Smartphone,
-    title: "Works on Mobile",
-    label: "Mobile",
-    desc: "Optimized for phones and tablets. Your cashier can use it from any device at the counter.",
-    accent: "#8b5cf6",
-    bg: "from-violet-500/10 to-transparent",
-    border: "border-violet-500/20 hover:border-violet-500/50",
-  },
-];
+import { useTranslation } from "react-i18next";
 
 function Features() {
+  const { t } = useTranslation();
+
+  const features = [
+    {
+      icon: Zap,
+      title: t("landing.features.billing.title"),
+      label: "POS",
+      desc: t("landing.features.billing.desc"),
+      accent: "#6366f1",
+      bg: "from-indigo-500/10 to-transparent",
+      border: "border-indigo-500/20 hover:border-indigo-500/50",
+    },
+    {
+      icon: BookOpenCheck,
+      title: t("landing.features.khata.title"),
+      label: "Credit",
+      desc: t("landing.features.khata.desc"),
+      accent: "#f59e0b",
+      bg: "from-amber-500/10 to-transparent",
+      border: "border-amber-500/20 hover:border-amber-500/50",
+    },
+    {
+      icon: PackageSearch,
+      title: t("landing.features.inventory.title"),
+      label: "Stock",
+      desc: t("landing.features.inventory.desc"),
+      accent: "#10b981",
+      bg: "from-emerald-500/10 to-transparent",
+      border: "border-emerald-500/20 hover:border-emerald-500/50",
+    },
+    {
+      icon: BarChart3,
+      title: t("landing.features.analytics.title"),
+      label: "Reports",
+      desc: t("landing.features.analytics.desc"),
+      accent: "#f43f5e",
+      bg: "from-rose-500/10 to-transparent",
+      border: "border-rose-500/20 hover:border-rose-500/50",
+    },
+    {
+      icon: ShieldCheck,
+      title: t("landing.features.secure.title"),
+      label: "Security",
+      desc: t("landing.features.secure.desc"),
+      accent: "#0ea5e9",
+      bg: "from-sky-500/10 to-transparent",
+      border: "border-sky-500/20 hover:border-sky-500/50",
+    },
+    {
+      icon: Smartphone,
+      title: t("landing.features.mobile.title"),
+      label: "Mobile",
+      desc: t("landing.features.mobile.desc"),
+      accent: "#8b5cf6",
+      bg: "from-violet-500/10 to-transparent",
+      border: "border-violet-500/20 hover:border-violet-500/50",
+    },
+  ];
+
   return (
     <section id="features" className="py-24 bg-[#09090b] relative">
       {/* Subtle top border gradient */}
@@ -75,16 +78,15 @@ function Features() {
         {/* Header */}
         <div className="max-w-2xl mb-16">
           <p className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] mb-4">
-            Features
+            {t("landing.features.title")}
           </p>
           <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight mb-4">
-            Everything your shop needs,
+            {t("landing.features.headline")}
             <br />
-            <span className="text-slate-500">nothing you don't.</span>
+            <span className="text-slate-500">{t("landing.features.headlineAccent")}</span>
           </h2>
           <p className="text-slate-400 text-lg font-medium">
-            StockBridge replaces your notebook, calculator, and spreadsheet —
-            with a system that actually works for Indian retail.
+            {t("landing.features.subheadline")}
           </p>
         </div>
 

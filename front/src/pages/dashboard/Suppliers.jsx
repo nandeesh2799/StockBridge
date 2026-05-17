@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Plus,
@@ -33,11 +34,13 @@ const emptyPurchaseForm = {
   notes: "",
 };
 
-const formatCurrency = (amount = 0) =>
-  `₹${new Intl.NumberFormat("en-IN").format(Number(amount) || 0)}`;
-
 const Suppliers = () => {
+  const { t, i18n } = useTranslation();
   const { items } = useOutletContext();
+
+  const formatCurrency = (amount = 0) =>
+    `₹${new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(Number(amount) || 0)}`;
+
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);

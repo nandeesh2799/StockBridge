@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 function Footer() {
+  const { t } = useTranslation();
+  
   return (
     <footer className="py-16 bg-[#09090b] border-t border-slate-800/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -16,14 +19,13 @@ function Footer() {
               StockBridge
             </Link>
             <p className="text-slate-400 text-sm max-w-xs mx-auto md:mx-0 font-medium leading-relaxed">
-              Smart retail & inventory management system designed to empower the
-              modern Indian business owner.
+              {t("landing.footer.desc")}
             </p>
           </div>
 
           <div className="space-y-4">
             <h4 className="text-white font-bold tracking-wide uppercase text-xs">
-              Product
+              {t("landing.footer.product")}
             </h4>
             <ul className="space-y-3 text-slate-400 text-sm font-medium">
               <li>
@@ -31,7 +33,7 @@ function Footer() {
                   href="/#features"
                   className="hover:text-indigo-400 transition-colors"
                 >
-                  Features
+                  {t("landing.navbar.features")}
                 </a>
               </li>
               
@@ -41,7 +43,7 @@ function Footer() {
 
           <div className="space-y-4">
             <h4 className="text-white font-bold tracking-wide uppercase text-xs">
-              Company
+              {t("landing.footer.company")}
             </h4>
             <ul className="space-y-3 text-slate-400 text-sm font-medium">
               <li>
@@ -49,7 +51,7 @@ function Footer() {
                   to="/about"
                   className="hover:text-indigo-400 transition-colors"
                 >
-                  About Us
+                  {t("landing.footer.about")}
                 </Link>
               </li>
               <li>
@@ -57,7 +59,7 @@ function Footer() {
                   to="/privacy"
                   className="hover:text-indigo-400 transition-colors"
                 >
-                  Privacy Policy
+                  {t("landing.footer.privacy")}
                 </Link>
               </li>
               <li>
@@ -65,7 +67,7 @@ function Footer() {
                   to="/terms"
                   className="hover:text-indigo-400 transition-colors"
                 >
-                  Terms of Service
+                  {t("landing.footer.terms")}
                 </Link>
               </li>
             </ul>
@@ -73,8 +75,7 @@ function Footer() {
         </div>
 
         <div className="mt-16 pt-8 border-t border-slate-800 text-center text-slate-500 text-sm font-medium">
-          © {new Date().getFullYear()} StockBridge Solutions. All rights
-          reserved.
+          © {new Date().getFullYear()} StockBridge Solutions. {t("landing.footer.rights")}
         </div>
       </div>
     </footer>

@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { Menu, WifiOff } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ const Topbar = ({ setSidebarOpen }) => {
   const [initials, setInitials] = useState("SB");
   const [shopName, setShopName] = useState("");
   const [userAvatar, setUserAvatar] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const location = useLocation();
 
   const getPageTitle = (path) => {
@@ -53,7 +54,17 @@ const Topbar = ({ setSidebarOpen }) => {
   useEffect(() => {
     syncData();
     window.addEventListener("profileUpdated", syncData);
-    return () => window.removeEventListener("profileUpdated", syncData);
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("profileUpdated", syncData);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   return (
@@ -80,12 +91,21 @@ const Topbar = ({ setSidebarOpen }) => {
           <LanguageSwitcher />
         </div>
         
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-            {"Live"}
-          </span>
-        </div>
+        {!isOnline ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 rounded-full border border-rose-500/20">
+            <WifiOff size={12} className="text-rose-400" />
+            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">
+              {t("common.offline") || "Offline"}
+            </span>
+          </div>
+        ) : (
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+              {"Live"}
+            </span>
+          </div>
+        )}
 
         <Link
           to="/dashboard/profile"

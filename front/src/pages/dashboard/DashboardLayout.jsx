@@ -15,41 +15,46 @@ const DashboardLayout = () => {
   const [customers, setCustomers] = useState([]);
   const [shopProfile, setShopProfile] = useState({});
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [itemsRes, custRes, salesRes] = await Promise.all([
-          API.get("/items").catch(() => ({ data: { data: [] } })),
-          API.get("/customers").catch(() => ({ data: { data: [] } })),
-          API.get("/sales").catch(() => ({ data: { data: [] } })),
-        ]);
+  const fetchAll = async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    try {
+      const [itemsRes, custRes, salesRes] = await Promise.all([
+        API.get("/items").catch(() => ({ data: { data: [] } })),
+        API.get("/customers").catch(() => ({ data: { data: [] } })),
+        API.get("/sales").catch(() => ({ data: { data: [] } })),
+      ]);
 
-        setItems(itemsRes.data.data || []);
-        setCustomers(custRes.data.data || []);
-        setSales(salesRes.data.data || []);
+      setItems(itemsRes.data.data || []);
+      setCustomers(custRes.data.data || []);
+      setSales(salesRes.data.data || []);
 
-        const savedShop = localStorage.getItem("retailflow_shop");
-        if (savedShop) {
-          try {
-            setShopProfile(JSON.parse(savedShop));
-          } catch {
-            // corrupted data — clear and redirect
-            localStorage.removeItem("retailflow_shop");
-            localStorage.removeItem("retailflow_token");
-            navigate("/login");
-          }
+      const savedShop = localStorage.getItem("retailflow_shop");
+      if (savedShop) {
+        try {
+          setShopProfile(JSON.parse(savedShop));
+        } catch {
+          // corrupted data — clear and redirect
+          localStorage.removeItem("retailflow_shop");
+          localStorage.removeItem("retailflow_token");
+          navigate("/login");
         }
-      } catch (error) {
-        // 401 is handled by axios interceptor — other errors show toast
-        if (error.response?.status !== 401) {
-          toast.error("Failed to sync data. Check your connection.");
-        }
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      // 401 is handled by axios interceptor — other errors show toast
+      if (error.response?.status !== 401 && !silent) {
+        toast.error("Failed to sync data. Check your connection.");
+      }
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAll();
+
+    const handleSync = () => fetchAll(true);
+    window.addEventListener("salesSynced", handleSync);
+    return () => window.removeEventListener("salesSynced", handleSync);
   }, [navigate]);
 
   // Profile update handler — keeps shopProfile in sync with localStorage

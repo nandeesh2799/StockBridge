@@ -27,6 +27,10 @@ import Expenses from "./pages/dashboard/Expenses";
 import Suppliers from "./pages/dashboard/Suppliers";
 import Staff from "./pages/dashboard/Staff";
 import AIChat from "./pages/AIChat";
+import i18n from "./i18n/i18n";
+import { getPendingSales, removePendingSale } from "./utils/offlineSync";
+import API from "./api/axiosInstance";
+import { toast } from "sonner";
 
 
 const ProtectedRoute = ({ children }) => {
@@ -36,6 +40,65 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const App = () => {
+  React.useEffect(() => {
+    const shop = localStorage.getItem("retailflow_shop");
+    if (shop) {
+      try {
+        const parsedShop = JSON.parse(shop);
+        if (parsedShop.language) {
+          i18n.changeLanguage(parsedShop.language);
+        }
+      } catch (err) {
+        console.error("Failed to parse shop profile for language:", err);
+      }
+    }
+  }, []);
+
+  // Offline Sync Logic
+  React.useEffect(() => {
+    const syncSales = async () => {
+      const pending = getPendingSales();
+      if (pending.length === 0) return;
+
+      const token = localStorage.getItem("retailflow_token");
+      if (!token) return;
+
+      toast.promise(
+        (async () => {
+          let syncedCount = 0;
+          for (const sale of pending) {
+            try {
+              // Remove offline-specific fields before syncing
+              // eslint-disable-next-line no-unused-vars
+              const { _id, offline, invoiceNumber, createdAt, ...payload } = sale;
+              await API.post("/sales", payload);
+              removePendingSale(sale._id);
+              syncedCount++;
+            } catch (err) {
+              console.error("Failed to sync sale:", sale._id, err);
+            }
+          }
+          if (syncedCount > 0) {
+            // Trigger a refresh of sales data across the app
+            window.dispatchEvent(new Event("salesSynced"));
+          }
+          return syncedCount;
+        })(),
+        {
+          loading: `Syncing ${pending.length} offline sales...`,
+          success: (count) => `Successfully synced ${count} sales!`,
+          error: "Failed to sync some sales. Will retry later.",
+        }
+      );
+    };
+
+    window.addEventListener("online", syncSales);
+    // Also try syncing on mount if online
+    if (navigator.onLine) syncSales();
+
+    return () => window.removeEventListener("online", syncSales);
+  }, []);
+
   return (
     <div className="min-h-screen w-full bg-[#09090b] text-white">
       <Toaster richColors position="top-right" theme="dark" />

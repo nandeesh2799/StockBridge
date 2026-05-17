@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 
 const StockAdjustment = () => {
-  const { t } = useTranslation();
-  const { items = [], setItems } = useOutletContext();
+  const { t, i18n } = useTranslation();
+  const { items, setItems } = useOutletContext();
   const [selectedItemId, setSelectedItemId] = useState("");
   const [type, setType] = useState("add");
   const [quantity, setQuantity] = useState("");
@@ -218,7 +218,7 @@ const StockAdjustment = () => {
                         {adj.type}
                       </p>
                       <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        {new Date(adj.date).toLocaleDateString("en-IN")}
+                        {new Date(adj.date).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)}
                       </span>
                     </div>
                     <p className="text-sm font-black mt-0.5 text-slate-300">

@@ -42,7 +42,9 @@
     "box": "Box",
     "back": "Back",
     "next": "Next",
-    "finish": "Finish"
+    "finish": "Finish",
+    "offline": "Offline",
+    "online": "Online"
   },
   "dashboard": {
     "todaysRevenue": "Today's Revenue",
@@ -123,6 +125,8 @@
   },
   "billing": {
     "pos": "Point of Sale",
+    "pendingSync": "Sales Pending Sync",
+    "syncInfo": "They will be uploaded automatically when you're back online.",
     "cart": "Cart",
     "subtotal": "Subtotal",
     "tax": "Tax",
@@ -367,6 +371,7 @@
     "itemUpdated": "Item updated successfully",
     "itemDeleted": "Item deleted successfully",
     "saleSuccess": "Sale completed successfully",
+    "savedOffline": "Network down! Sale saved offline and will sync later.",
     "paymentRecorded": "Payment recorded successfully",
     "reminderSet": "Reminder set successfully",
     "settingsSaved": "Settings saved successfully",
@@ -412,5 +417,92 @@
     "reminderBody": "This is a formal notification regarding your pending balance at {{shopName}}. Please facilitate payment at your earliest convenience.\n\n",
     "upiLink": "DIRECT UPI SETTLEMENT LINK:\n{{upiLink}}\n\n",
     "footer": "Thank you for your cooperation.\n\nRegards,\nAccounts Management\n{{shopName}}\n--------------------------\nPOWERED BY STOCKBRIDGE\n=========================="
+  },
+  "landing": {
+    "hero": {
+      "badge": "Built for Indian Retailers",
+      "headline": "Run your <br /> <span class='text-transparent bg-clip-text bg-linear-to-r from-indigo-400 to-violet-400'>Shop</span> <br /> smarter.",
+      "headlinePart1": "Run your",
+      "headlinePart2": "Shop",
+      "headlinePart3": "smarter.",
+      "subheadline": "POS billing, digital khata, inventory tracking and profit analytics — all in one place. No more notebooks.",
+      "instantBilling": "Instant billing",
+      "secure": "Encrypted & secure",
+      "analytics": "Real-time analytics",
+      "startFree": "Start for free",
+      "signIn": "Sign in",
+      "goDashboard": "Go to Dashboard"
+    },
+    "mock": {
+      "revenue": "Today's Revenue",
+      "profit": "Profit",
+      "credit": "Credit",
+      "today": "today",
+      "revVsProf": "Revenue vs Profit",
+      "recentTx": "Recent Transactions",
+      "walkIn": "Walk-in"
+    },
+    "features": {
+      "title": "Features",
+      "headline": "Everything your shop needs,",
+      "headlineAccent": "nothing you don't.",
+      "subheadline": "StockBridge replaces your notebook, calculator, and spreadsheet — with a system that actually works for Indian retail.",
+      "billing": {
+        "title": "Fast Billing",
+        "desc": "Bill customers in seconds. Split payments across cash, UPI and credit. Generate professional invoices with QR codes."
+      },
+      "khata": {
+        "title": "Digital Khata",
+        "desc": "Track credit digitally. Send WhatsApp payment reminders with UPI links. Set credit limits per customer."
+      },
+      "inventory": {
+        "title": "Smart Inventory",
+        "desc": "Know your stock at all times. Get low stock alerts before you run out. Track batches and expiry dates."
+      },
+      "analytics": {
+        "title": "Profit Analytics",
+        "desc": "See daily and monthly profit, revenue trends, and top-selling items in one clean dashboard."
+      },
+      "secure": {
+        "title": "Secure & Encrypted",
+        "desc": "Your data is encrypted end-to-end and backed up automatically. Role-based access for staff."
+      },
+      "mobile": {
+        "title": "Works on Mobile",
+        "desc": "Optimized for phones and tablets. Your cashier can use it from any device at the counter."
+      }
+    },
+    "howItWorks": {
+      "title": "How it works",
+      "headline": "Up and running in minutes.",
+      "step1": {
+        "title": "Create your account",
+        "desc": "Sign up with your shop name and email. Takes under 2 minutes. No paperwork."
+      },
+      "step2": {
+        "title": "Add your inventory",
+        "desc": "Add items with prices and stock levels. Import in bulk if you have a list ready."
+      },
+      "step3": {
+        "title": "Start billing",
+        "desc": "Open POS, scan or search items, and generate bills with UPI QR codes instantly."
+      }
+    },
+    "footer": {
+      "desc": "Smart retail & inventory management system designed to empower the modern Indian business owner.",
+      "product": "Product",
+      "company": "Company",
+      "about": "About Us",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "rights": "All rights reserved."
+    },
+    "navbar": {
+      "home": "Home",
+      "features": "Features",
+      "login": "Login",
+      "signup": "Sign Up",
+      "dashboard": "Dashboard"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Wallet, X, Edit2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import API from "../../api/axiosInstance";
 
 const Expenses = () => {
@@ -188,7 +189,7 @@ const Expenses = () => {
             Total Expenses
           </p>
           <p className="text-3xl font-black text-rose-400">
-            ₹{new Intl.NumberFormat("en-IN").format(totalAmount)}
+            ₹{new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(totalAmount)}
           </p>
         </div>
         {Object.entries(byCategory)
@@ -202,7 +203,7 @@ const Expenses = () => {
                 {cat}
               </p>
               <p className="text-2xl font-black text-white">
-                ₹{new Intl.NumberFormat("en-IN").format(amt)}
+                ₹{new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(amt)}
               </p>
             </div>
           ))}
@@ -241,14 +242,14 @@ const Expenses = () => {
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {new Date(expense.date).toLocaleDateString("en-IN")} ·{" "}
+                      {new Date(expense.date).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)} ·{" "}
                       {expense.paymentMethod}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="font-black text-rose-400 text-lg">
-                    ₹{new Intl.NumberFormat("en-IN").format(expense.amount)}
+                    ₹{new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(expense.amount)}
                   </p>
                   <button
                     onClick={() => handleEdit(expense)}

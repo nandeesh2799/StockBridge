@@ -20,9 +20,15 @@ const LanguageSwitcher = () => {
       
       const token = localStorage.getItem('retailflow_token');
       if (token) {
+        // Update local storage shop object
+        const shopData = localStorage.getItem('retailflow_shop');
+        if (shopData) {
+          const shop = JSON.parse(shopData);
+          shop.language = lng;
+          localStorage.setItem('retailflow_shop', JSON.stringify(shop));
+        }
+
         await API.put('/auth/profile', { language: lng });
-        // Optionally update shopProfile in context if needed, 
-        // but since we refresh or use i18n locally, it's fine.
       }
     } catch (err) {
       console.error('Failed to sync language with backend:', err);

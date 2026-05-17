@@ -395,15 +395,27 @@ export const getMe = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const { password, email, otp, otpExpires, ...updateData } = req.body;
-    const shop = await Shop.findByIdAndUpdate(req.shop.id, updateData, {
-      new: true,
-      runValidators: true,
-    });
+    const { password, email, otp, otpExpires, pin, ...updateData } = req.body;
+    
+    let updatedData;
+    if (req.role === "owner") {
+      const shop = await Shop.findByIdAndUpdate(req.shop.id, updateData, {
+        new: true,
+        runValidators: true,
+      });
+      updatedData = sanitizeShop(shop);
+    } else {
+      const staff = await Staff.findByIdAndUpdate(req.userId, updateData, {
+        new: true,
+        runValidators: true,
+      }).select("-pin");
+      updatedData = staff;
+    }
+
     return res.status(200).json({
       success: true,
       message: "Profile updated!",
-      data: sanitizeShop(shop),
+      data: updatedData,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

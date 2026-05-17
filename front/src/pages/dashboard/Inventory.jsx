@@ -811,7 +811,7 @@ const Inventory = () => {
                 <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <Clock size={12} /> Updated:{" "}
                   {item.updatedAt
-                    ? new Date(item.updatedAt).toLocaleDateString("en-IN")
+                    ? new Date(item.updatedAt).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)
                     : "Today"}
                 </div>
                 <div className="flex gap-3">

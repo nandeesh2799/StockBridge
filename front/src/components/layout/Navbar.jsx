@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "../common/LanguageSwitcher";
 
 function Navbar() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
 
   // FIX: Was "retailflow_token" in some places, "neodukaan_token" in others
   // Now unified to "retailflow_token" everywhere
@@ -52,16 +55,19 @@ function Navbar() {
                 onClick={(e) => handleNavClick(e, section)}
                 className="text-sm font-bold text-slate-300 hover:text-indigo-400 transition-colors cursor-pointer capitalize"
               >
-                {section}
+                {t(`landing.navbar.${section}`)}
               </a>
             ))}
           </div>
 
           <div className="flex items-center gap-4 sm:gap-6">
+            <div className="hidden sm:block">
+              <LanguageSwitcher />
+            </div>
             {token ? (
               <Link to="/dashboard" className="hidden sm:block">
-                <div className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl transition-all duration-200 font-black shadow-lg shadow-indigo-600/20 active:scale-95">
-                  Dashboard
+                <div className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl transition-all duration-200 font-black shadow-lg shadow-indigo-600/30 active:scale-95">
+                  {t("landing.navbar.dashboard")}
                 </div>
               </Link>
             ) : (
@@ -70,11 +76,11 @@ function Navbar() {
                   to="/login"
                   className="text-sm font-black text-slate-300 hover:text-white transition-colors"
                 >
-                  Login
+                  {t("landing.navbar.login")}
                 </Link>
                 <Link to="/signup">
-                  <div className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl transition-all duration-200 font-black shadow-lg shadow-indigo-600/20 active:scale-95">
-                    Sign Up
+                  <div className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl transition-all duration-200 font-black shadow-lg shadow-indigo-600/30 active:scale-95">
+                    {t("landing.navbar.signup")}
                   </div>
                 </Link>
               </div>
@@ -104,26 +110,29 @@ function Navbar() {
               onClick={(e) => handleNavClick(e, section)}
               className="hover:text-indigo-500 transition-colors capitalize"
             >
-              {section}
+              {t(`landing.navbar.${section}`)}
             </a>
           ))}
           <div className="flex flex-col gap-4 mt-6 w-72">
+            <div className="flex justify-center mb-4">
+              <LanguageSwitcher />
+            </div>
             {token ? (
               <Link to="/dashboard" onClick={() => setOpen(false)}>
                 <div className="bg-indigo-600 text-white text-center py-4 rounded-2xl shadow-xl font-black">
-                  Dashboard
+                  {t("landing.navbar.dashboard")}
                 </div>
               </Link>
             ) : (
               <>
                 <Link to="/login" onClick={() => setOpen(false)}>
                   <div className="border-2 border-slate-700 text-white text-center py-4 rounded-2xl font-black">
-                    Login
+                    {t("landing.navbar.login")}
                   </div>
                 </Link>
                 <Link to="/signup" onClick={() => setOpen(false)}>
                   <div className="bg-indigo-600 text-white text-center py-4 rounded-2xl shadow-xl font-black">
-                    Sign Up
+                    {t("landing.navbar.signup")}
                   </div>
                 </Link>
               </>

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 const Reports = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { sales = [] } = useOutletContext();
   const [range, setRange] = useState("30d");
   const [customStart, setCustomStart] = useState("");
@@ -72,7 +72,7 @@ const Reports = () => {
     const dailyMap = {};
     filteredSales.forEach((sale) => {
       const day = new Date(sale.createdAt || sale.date).toLocaleDateString(
-        "en-IN",
+        i18n.language === 'en' ? 'en-IN' : i18n.language,
         { month: "short", day: "numeric" },
       );
       if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, profit: 0 };
@@ -80,7 +80,7 @@ const Reports = () => {
       dailyMap[day].profit += Number(sale.profit || 0);
     });
     return Object.values(dailyMap);
-  }, [filteredSales]);
+  }, [filteredSales, i18n.language]);
 
   const paymentData = useMemo(
     () => [
@@ -111,7 +111,7 @@ const Reports = () => {
   );
 
   const formatCurrency = (num) =>
-    `₹${new Intl.NumberFormat("en-IN").format(Math.round(num))}`;
+    `₹${new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(Math.round(num))}`;
 
   return (
     <div className="text-white space-y-6 bg-transparent min-h-screen pb-20">

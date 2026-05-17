@@ -19,6 +19,7 @@ const staffSchema = new mongoose.Schema(
       select: false, // Never returned in queries by default
     },
     isActive: { type: Boolean, default: true },
+    language: { type: String, default: "en", enum: ["en", "hi", "kn"] },
     permissions: {
       canAccessPOS: { type: Boolean, default: true },
       canAccessInventory: { type: Boolean, default: false },

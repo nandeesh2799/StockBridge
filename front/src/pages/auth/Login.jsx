@@ -18,6 +18,7 @@ import {
   resetPassword,
 } from "../../api/auth.api";
 import Navbar from "../../components/layout/Navbar";
+import i18n from "../../i18n/i18n";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -63,6 +64,7 @@ const Login = () => {
         localStorage.setItem("retailflow_token", res.token);
         localStorage.setItem("retailflow_shop", JSON.stringify(res.data));
         localStorage.setItem("retailflow_role", "owner");
+        if (res.data.language) i18n.changeLanguage(res.data.language);
         toast.success("Welcome back to StockBridge!");
         navigate("/dashboard");
       }
@@ -99,6 +101,7 @@ const Login = () => {
         localStorage.setItem("retailflow_token", res.token);
         localStorage.setItem("retailflow_shop", JSON.stringify(res.data));
         localStorage.setItem("retailflow_role", "owner");
+        if (res.data.language) i18n.changeLanguage(res.data.language);
         toast.success("Welcome back to StockBridge!");
         navigate("/dashboard");
       }
@@ -120,6 +123,7 @@ const Login = () => {
         localStorage.setItem("retailflow_token", res.token);
         localStorage.setItem("retailflow_shop", JSON.stringify(res.data));
         localStorage.setItem("retailflow_role", res.data.role);
+        if (res.data.language) i18n.changeLanguage(res.data.language);
         toast.success(`Welcome, ${res.data.name}!`);
         navigate("/dashboard");
       }

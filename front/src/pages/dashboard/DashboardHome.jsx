@@ -367,7 +367,7 @@ ${JSON.stringify(summary, null, 2)}`;
                   fontWeight: 700,
                 }}
                 formatter={(val) =>
-                  `₹${new Intl.NumberFormat("en-IN").format(val)}`
+                  `₹${new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(val)}`
                 }
               />
               <Area

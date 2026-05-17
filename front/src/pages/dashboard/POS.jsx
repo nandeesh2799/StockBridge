@@ -4,7 +4,9 @@ import { Trash2, Plus, Minus, Search, Receipt, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { useTranslation } from "react-i18next";
+import { CloudUpload } from "lucide-react";
 import API from "../../api/axiosInstance";
+import { savePendingSale, getPendingSales } from "../../utils/offlineSync";
 
 const POS = () => {
   const { t, i18n } = useTranslation();
@@ -56,7 +58,20 @@ const POS = () => {
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [isSavingScannedItem, setIsSavingScannedItem] = useState(false);
   const [pendingBarcodeLookup, setPendingBarcodeLookup] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(getPendingSales().length);
   const [isAutoFillingProduct, setIsAutoFillingProduct] = useState(false);
+
+  useEffect(() => {
+    const updateSyncCount = () => {
+      setPendingSyncCount(getPendingSales().length);
+    };
+    window.addEventListener("online", updateSyncCount);
+    window.addEventListener("salesSynced", updateSyncCount);
+    return () => {
+      window.removeEventListener("online", updateSyncCount);
+      window.removeEventListener("salesSynced", updateSyncCount);
+    };
+  }, []);
   const [autoFillSource, setAutoFillSource] = useState("");
   const [addItemForm, setAddItemForm] = useState({
     name: "",
@@ -827,84 +842,106 @@ const POS = () => {
       const res = await API.post("/sales", salePayload);
       const savedSale = res.data.data;
       setSales((prev) => [...prev, savedSale]);
-      if (credit > 0 && customerId) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c._id === customerId
-              ? { ...c, totalCredit: (c.totalCredit || 0) + credit }
-              : c,
-          ),
-        );
-      }
-      setItems((prev) =>
-        prev.map((item) => {
-          const cartItem = cart.find((c) => c.itemId === item._id);
-          if (!cartItem) return item;
-          return {
-            ...item,
-            batches: item.batches.map((b, idx) =>
-              idx === 0
-                ? {
-                    ...b,
-                    quantity: Math.max(0, b.quantity - cartItem.quantity),
-                  }
-                : b,
-            ),
-          };
-        }),
-      );
-      let waUrl = "";
-      if (customerPhone && customerPhone.trim().length >= 10) {
-        const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
-        const now = new Date();
-        const dateStr = now.toLocaleDateString(currentLang === 'en' ? 'en-IN' : currentLang, {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        });
-        const timeStr = now.toLocaleTimeString(currentLang === 'en' ? 'en-IN' : currentLang, {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        const itemDetails = cart
-          .map(
-            (i) =>
-              `${i.name.toUpperCase()}\nQty: ${i.quantity} | Rate: ${i.sellingPrice.toFixed(2)} | Total: ${(i.quantity * i.sellingPrice).toFixed(2)}`,
-          )
-          .join("\n\n");
-
-        const paymentSplitStr = [
-          cash > 0 ? `- ${t("billing.cash")} : ${cash.toFixed(2)}` : "",
-          upi > 0 ? `- ${t("billing.upi")} : ${upi.toFixed(2)}` : "",
-          credit > 0 ? `- ${t("billing.credit")} : ${credit.toFixed(2)}` : "",
-        ].filter(Boolean).join("\n");
-
-        const message =
-          t("whatsapp.invoiceHeader", { shopName: SHOP_NAME.toUpperCase() }) +
-          t("whatsapp.invoiceDetails", { invoiceNo: savedSale.invoiceNumber, date: dateStr, time: timeStr, items: itemDetails }) +
-          t("whatsapp.invoiceSummary", { subTotal: grandTotal.toFixed(2), total: grandTotal.toFixed(2) }) +
-          t("whatsapp.paymentDetails", { paymentSplit: paymentSplitStr }) +
-          t("whatsapp.footer", { shopName: SHOP_NAME });
-
-        waUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
-      }
-      setCart([]);
-      setPayments({ cash: "", upi: "", credit: "" });
-      setIsUpiAuto(true);
-      setCustomerPhone("");
-      setShowConfirmModal(false);
-      toast.success(t("toast.saleSuccess"));
-      navigate(`/dashboard/invoice/${savedSale._id}`);
-      if (waUrl) {
-        setTimeout(() => {
-          window.open(waUrl, "_blank", "noopener,noreferrer");
-        }, 150);
-      }
+      handleAfterSale(savedSale, credit, customerId);
     } catch (error) {
-      toast.error(error.response?.data?.message || t("toast.error"));
+      if (!error.response || error.code === "ERR_NETWORK") {
+        const offlineSale = savePendingSale(salePayload);
+        setSales((prev) => [...prev, offlineSale]);
+        handleAfterSale(offlineSale, credit, customerId);
+        toast.warning(t("toast.savedOffline"));
+      } else {
+        toast.error(error.response?.data?.message || t("toast.error"));
+      }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAfterSale = (savedSale, credit, customerId) => {
+    const cash = Number(payments.cash || 0);
+    const upi = Number(payments.upi || 0);
+
+    if (credit > 0 && customerId) {
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c._id === customerId
+            ? { ...c, totalCredit: (c.totalCredit || 0) + credit }
+            : c,
+        ),
+      );
+    }
+    setItems((prev) =>
+      prev.map((item) => {
+        const cartItem = cart.find((c) => c.itemId === item._id);
+        if (!cartItem) return item;
+        return {
+          ...item,
+          batches: item.batches.map((b, idx) =>
+            idx === 0
+              ? {
+                  ...b,
+                  quantity: Math.max(0, b.quantity - cartItem.quantity),
+                }
+              : b,
+          ),
+        };
+      }),
+    );
+    let waUrl = "";
+    if (customerPhone && customerPhone.trim().length >= 10) {
+      const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
+      const now = new Date();
+      const dateStr = now.toLocaleDateString(currentLang === 'en' ? 'en-IN' : currentLang, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      const timeStr = now.toLocaleTimeString(currentLang === 'en' ? 'en-IN' : currentLang, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const itemDetails = cart
+        .map(
+          (i) =>
+            `${i.name.toUpperCase()}\nQty: ${i.quantity} | Rate: ${i.sellingPrice.toFixed(2)} | Total: ${(i.quantity * i.sellingPrice).toFixed(2)}`,
+        )
+        .join("\n\n");
+
+      const paymentSplitStr = [
+        cash > 0 ? `- ${t("billing.cash")} : ${cash.toFixed(2)}` : "",
+        upi > 0 ? `- ${t("billing.upi")} : ${upi.toFixed(2)}` : "",
+        credit > 0 ? `- ${t("billing.credit")} : ${credit.toFixed(2)}` : "",
+      ].filter(Boolean).join("\n");
+
+      const message =
+        t("whatsapp.invoiceHeader", { shopName: SHOP_NAME.toUpperCase() }) +
+        t("whatsapp.invoiceDetails", { invoiceNo: savedSale.invoiceNumber, date: dateStr, time: timeStr, items: itemDetails }) +
+        t("whatsapp.invoiceSummary", { subTotal: grandTotal.toFixed(2), total: grandTotal.toFixed(2) }) +
+        t("whatsapp.paymentDetails", { paymentSplit: paymentSplitStr }) +
+        t("whatsapp.footer", { shopName: SHOP_NAME });
+
+      waUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
+    }
+    setCart([]);
+    setPayments({ cash: "", upi: "", credit: "" });
+    setIsUpiAuto(true);
+    setCustomerPhone("");
+    setShowConfirmModal(false);
+    
+    if (!savedSale.offline) {
+      toast.success(t("toast.saleSuccess"));
+      navigate(`/dashboard/invoice/${savedSale._id}`);
+    } else {
+      // In offline mode, maybe just show a success message but stay on POS
+      // or show a preview of the offline receipt.
+      // For now, let's just toast and stay.
+    }
+
+    if (waUrl) {
+      setTimeout(() => {
+        window.open(waUrl, "_blank", "noopener,noreferrer");
+      }, 150);
     }
   };
 
@@ -944,6 +981,22 @@ const POS = () => {
             <Zap size={16} /> {barcodeMode ? t("inventory.scannerOn") : t("inventory.enableScanner")}
           </button>
         </div>
+
+        {pendingSyncCount > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CloudUpload className="text-amber-400" size={20} />
+              <div>
+                <p className="text-sm font-bold text-amber-400">
+                  {pendingSyncCount} {t("billing.pendingSync") || "Sales Pending Sync"}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {t("billing.syncInfo") || "They will be uploaded automatically when you're back online."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="relative">
           <Search
