@@ -3,6 +3,9 @@ import Sale from "../models/Sale.js";
 import Item from "../models/Item.js";
 import Expense from "../models/Expense.js";
 import Customer from "../models/Customer.js";
+import Supplier from "../models/Supplier.js";
+import Staff from "../models/Staff.js";
+import Shop from "../models/Shop.js";
 
 // Cache for shop snapshots only (not per-prompt), keyed by shopId
 const snapshotCache = new Map();
@@ -19,28 +22,30 @@ const getShopSnapshot = async (shopId) => {
   const start7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
   const start30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
 
-  const [recentSales, items, expenses, customers] = await Promise.all([
-    Sale.find({ shop: shopId, createdAt: { $gte: start30d } })
-      .sort({ createdAt: -1 })
-      .lean(),
+  const [sales, items, expenses, customers, suppliers, staff, shop] = await Promise.all([
+    Sale.find({ shop: shopId }).sort({ createdAt: -1 }).lean(),
     Item.find({ shop: shopId }).lean(),
-    Expense.find({ shop: shopId, createdAt: { $gte: start30d } }).lean(),
+    Expense.find({ shop: shopId }).sort({ createdAt: -1 }).lean(),
     Customer.find({ shop: shopId }).lean(),
+    Supplier.find({ shop: shopId }).lean(),
+    Staff.find({ shop: shopId }).lean(),
+    Shop.findById(shopId).lean(),
   ]);
 
   // --- Today ---
-  const todaySales = recentSales.filter((s) => s.createdAt >= startOfToday);
+  const todaySales = sales.filter((s) => new Date(s.createdAt) >= startOfToday);
   const todayRevenue = todaySales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
   const todayProfit = todaySales.reduce((sum, s) => sum + Number(s.profit || 0), 0);
 
   // --- Last 7 days ---
-  const sales7d = recentSales.filter((s) => s.createdAt >= start7d);
+  const sales7d = sales.filter((s) => new Date(s.createdAt) >= start7d);
   const revenue7d = sales7d.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
   const profit7d = sales7d.reduce((sum, s) => sum + Number(s.profit || 0), 0);
 
   // --- Last 30 days ---
-  const revenue30d = recentSales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
-  const profit30d = recentSales.reduce((sum, s) => sum + Number(s.profit || 0), 0);
+  const sales30d = sales.filter((s) => new Date(s.createdAt) >= start30d);
+  const revenue30d = sales30d.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
+  const profit30d = sales30d.reduce((sum, s) => sum + Number(s.profit || 0), 0);
 
   // --- Daily breakdown (last 7 days) ---
   const dailyBreakdown = {};
@@ -61,7 +66,7 @@ const getShopSnapshot = async (shopId) => {
   // --- Top performing items (30d) ---
   const itemPerformance = new Map();
   const inventoryIds = new Set(items.map((item) => String(item._id)));
-  recentSales.forEach((sale) => {
+  sales30d.forEach((sale) => {
     sale.items?.forEach((line) => {
       if (!inventoryIds.has(String(line.itemId))) return;
       const prev = itemPerformance.get(line.name) || { quantity: 0, revenue: 0 };
@@ -95,9 +100,10 @@ const getShopSnapshot = async (shopId) => {
     .slice(0, 10);
 
   // --- Expenses (30d) ---
-  const totalExpenses30d = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const expenses30d = expenses.filter((e) => new Date(e.createdAt) >= start30d);
+  const totalExpenses30d = expenses30d.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const expenseByCategory = {};
-  expenses.forEach((e) => {
+  expenses30d.forEach((e) => {
     expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + Number(e.amount || 0);
   });
 
@@ -107,7 +113,7 @@ const getShopSnapshot = async (shopId) => {
 
   // --- Payment method breakdown (30d) ---
   const paymentMethods = { cash: 0, upi: 0, credit: 0 };
-  recentSales.forEach((sale) => {
+  sales30d.forEach((sale) => {
     if (sale.paymentSplit) {
       paymentMethods.cash += Number(sale.paymentSplit.cash || 0);
       paymentMethods.upi += Number(sale.paymentSplit.upi || 0);
@@ -115,7 +121,83 @@ const getShopSnapshot = async (shopId) => {
     }
   });
 
+  // --- Lifetime Statistics ---
+  const lifetimeRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
+  const lifetimeProfit = sales.reduce((sum, s) => sum + Number(s.profit || 0), 0);
+  const lifetimeExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const lifetimePaymentMethods = { cash: 0, upi: 0, credit: 0 };
+  sales.forEach((sale) => {
+    if (sale.paymentSplit) {
+      lifetimePaymentMethods.cash += Number(sale.paymentSplit.cash || 0);
+      lifetimePaymentMethods.upi += Number(sale.paymentSplit.upi || 0);
+      lifetimePaymentMethods.credit += Number(sale.paymentSplit.credit || 0);
+    }
+  });
+
+  // --- Structured Supplier List ---
+  const supplierList = suppliers.map((sup) => ({
+    name: sup.name,
+    phone: sup.phone,
+    email: sup.email || "",
+    address: sup.address || "",
+    gstin: sup.gstin || "",
+    totalPurchased: Math.round(sup.totalPurchased || 0),
+    totalDue: Math.round(sup.totalDue || 0),
+    purchaseCount: sup.purchaseHistory ? sup.purchaseHistory.length : 0,
+  }));
+
+  // --- Structured Staff List (Excluding sensitive fields like pin/password/otp) ---
+  const staffList = staff.map((s) => ({
+    name: s.name,
+    phone: s.phone,
+    role: s.role,
+    isActive: s.isActive,
+    permissions: s.permissions,
+  }));
+
+  // --- Structured Shop Info ---
+  const shopInfo = shop
+    ? {
+        shopName: shop.shopName,
+        ownerName: shop.ownerName,
+        email: shop.email,
+        phone: shop.phone,
+        address: shop.address || "",
+        gstEnabled: shop.gstEnabled,
+        gst: shop.gst || "",
+        upiId: shop.upiId || "",
+        bankName: shop.bankName || "",
+        isPremium: shop.isPremium || false,
+        language: shop.language || "en",
+      }
+    : null;
+
+  // --- Sliced Recent lists for transaction level context (last 15 entries) ---
+  const slicedRecentSales = sales.slice(0, 15).map((s) => ({
+    id: s._id,
+    customerName: s.customerName || "Walk-in Customer",
+    totalAmount: Math.round(s.totalAmount || 0),
+    profit: Math.round(s.profit || 0),
+    paymentSplit: s.paymentSplit,
+    createdAt: s.createdAt,
+    items: s.items?.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      sellingPrice: item.sellingPrice,
+    })),
+  }));
+
+  const slicedRecentExpenses = expenses.slice(0, 15).map((e) => ({
+    id: e._id,
+    title: e.title,
+    amount: Math.round(e.amount || 0),
+    category: e.category,
+    createdAt: e.createdAt,
+    description: e.description || "",
+  }));
+
   const snapshot = {
+    shopInfo,
     totalItems: items.length,
     today: {
       salesCount: todaySales.length,
@@ -130,13 +212,22 @@ const getShopSnapshot = async (shopId) => {
       dailyBreakdown,
     },
     last30Days: {
-      salesCount: recentSales.length,
+      salesCount: sales30d.length,
       revenue: Math.round(revenue30d),
       profit: Math.round(profit30d),
       expenses: Math.round(totalExpenses30d),
       netProfit: Math.round(profit30d - totalExpenses30d),
       expenseByCategory,
       paymentMethods,
+    },
+    lifetimeStats: {
+      salesCount: sales.length,
+      revenue: Math.round(lifetimeRevenue),
+      profit: Math.round(lifetimeProfit),
+      expenses: Math.round(lifetimeExpenses),
+      netProfit: Math.round(lifetimeProfit - lifetimeExpenses),
+      paymentMethods: lifetimePaymentMethods,
+      expenseCount: expenses.length,
     },
     inventory: {
       totalItems: items.length,
@@ -151,6 +242,10 @@ const getShopSnapshot = async (shopId) => {
       withOutstandingCredit: customersWithCredit.length,
       totalOutstandingCredit: Math.round(totalOutstandingCredit),
     },
+    suppliers: supplierList,
+    staff: staffList,
+    recentSales: slicedRecentSales,
+    recentExpenses: slicedRecentExpenses,
   };
 
   snapshotCache.set(String(shopId), { data: snapshot, time: Date.now() });
@@ -196,6 +291,13 @@ export const getGeminiInsights = async (req, res) => {
       topItems: snapshot.topItems.map((item) => ({
         ...item,
         name: localizeItemName(item.name),
+      })),
+      recentSales: snapshot.recentSales?.map((sale) => ({
+        ...sale,
+        items: sale.items?.map((item) => ({
+          ...item,
+          name: localizeItemName(item.name),
+        })),
       })),
     };
 
