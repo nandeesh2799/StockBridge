@@ -183,10 +183,10 @@ const Khata = () => {
   return (
     <div className="text-white min-h-screen pb-24 space-y-6">
       <div>
-        <h1 className="text-2xl font-black tracking-tight">{t("khata.title")}</h1>
-        <p className="text-sm text-slate-400 mt-0.5">{t("khata.subtitle")}</p>
+        <h1 className="text-2xl font-black tracking-tight">{t("customers.title")}</h1>
+        <p className="text-sm text-slate-400 mt-0.5">{t("customers.subtitle")}</p>
         <div className="mt-4 inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-2 rounded-xl text-sm font-bold">
-          {t("khata.totalOutstanding")}: ₹
+          {t("customers.totalOutstanding")}: ₹
           {new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(totalOutstanding)}
         </div>
       </div>
@@ -277,7 +277,7 @@ const Khata = () => {
 
             <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 text-center">
               <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                {t("khata.totalOutstanding")}
+                {t("customers.totalOutstanding")}
               </p>
               <p className="text-3xl font-black text-rose-400">
                 ₹
@@ -297,18 +297,18 @@ const Khata = () => {
 
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                {t("khata.receivePayment")}
+                {t("customers.receivePayment")}
               </h4>
               <input
                 type="number"
-                placeholder={t("khata.amountReceived")}
+                placeholder={t("customers.amountReceived")}
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 className="w-full px-4 py-3 bg-[#09090b] border border-slate-700 rounded-xl text-white outline-none focus:border-emerald-500"
               />
               <input
                 type="text"
-                placeholder={t("khata.noteOptional")}
+                placeholder={t("customers.noteOptional")}
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
                 className="w-full px-4 py-3 bg-[#09090b] border border-slate-700 rounded-xl text-white outline-none focus:border-emerald-500"
@@ -318,7 +318,7 @@ const Khata = () => {
                 disabled={isSubmitting || !paymentAmount}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl disabled:opacity-40 transition-all"
               >
-                {isSubmitting ? t("khata.processing") : t("khata.recordPayment")}
+                {isSubmitting ? t("common.processing") : t("customers.recordPayment")}
               </button>
             </div>
 
@@ -327,24 +327,24 @@ const Khata = () => {
                 onClick={() => handleWhatsApp(selectedCustomer)}
                 className="flex items-center gap-2 justify-center py-3 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-sm font-bold hover:bg-emerald-600/30"
               >
-                <MessageCircle size={15} /> {t("khata.whatsapp")}
+                <MessageCircle size={15} /> {t("customers.whatsapp")}
               </button>
               <button
                 onClick={handlePDFStatement}
                 className="flex items-center gap-2 justify-center py-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl text-sm font-bold hover:bg-indigo-500/20"
               >
-                {t("khata.pdfStatement")}
+                {t("customers.pdfStatement")}
               </button>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <div className="flex justify-between items-center">
                 <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
-                  <Clock size={12} /> {t("khata.scheduleReminder")}
+                  <Clock size={12} /> {t("customers.scheduleReminder")}
                 </h4>
                 {selectedCustomer.nextReminderDate && (
                   <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold">
-                    {t("khata.scheduled")}: {new Date(selectedCustomer.nextReminderDate).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)}
+                    {t("customers.scheduled")}: {new Date(selectedCustomer.nextReminderDate).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : i18n.language)}
                   </span>
                 )}
               </div>
@@ -359,7 +359,7 @@ const Khata = () => {
                   onClick={handleScheduleReminder}
                   className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-sm hover:bg-slate-700"
                 >
-                  {t("khata.setReminder")}
+                  {t("customers.setReminder")}
                 </button>
                 {selectedCustomer.nextReminderDate && (
                   <button
@@ -373,15 +373,15 @@ const Khata = () => {
                           prev.map((c) => (c._id === updated._id ? updated : c)),
                         );
                         setSelectedCustomer(updated);
-                        toast.success(t("khata.reminderCleared"));
+                        toast.success(t("customers.reminderCleared"));
                       } catch {
-                        toast.error(t("khata.failedToClearReminder"));
+                        toast.error(t("customers.failedToClearReminder"));
                       }
                     }}
                     className="px-4 py-3 bg-rose-500/10 text-rose-400 font-bold rounded-xl text-sm hover:bg-rose-500/20"
-                    title={t("khata.clear")}
+                    title={t("customers.clear")}
                   >
-                    {t("khata.clear")}
+                    {t("customers.clear")}
                   </button>
                 )}
               </div>

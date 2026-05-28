@@ -18,7 +18,7 @@ const Topbar = ({ setSidebarOpen }) => {
       "/dashboard/pos": t("common.pos"),
       "/dashboard/inventory": t("common.inventory"),
       "/dashboard/stock-adjustment": t("common.stockAdjustment"),
-      "/dashboard/khata": t("khata.title"),
+      "/dashboard/khata": t("customers.title"),
       "/dashboard/reports": t("common.reports"),
       "/dashboard/ai-chat": t("common.aiAssistant"),
       "/dashboard/settings": t("common.settings"),
