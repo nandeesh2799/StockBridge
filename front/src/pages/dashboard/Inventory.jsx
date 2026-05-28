@@ -204,7 +204,7 @@ const Inventory = () => {
 
     const found = items.find((i) => i.barcode === barcode);
     if (found) {
-      toast.info(`Found existing item: ${found.name}`);
+      toast.info(`Found existing item: ${getItemName(found)}`);
       openEditDrawer(found);
       return;
     }
