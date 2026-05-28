@@ -116,8 +116,9 @@ export const createSale = async (req, res) => {
       if (!item) throw new Error(`Item not found`);
 
       const batch = item.batches.id(orderItem.batchId);
+      const itemDisplayName = typeof item.name === "object" ? (item.name.en || item.name.hi || item.name.kn || "Item") : (item.name || "Item");
       if (!batch || batch.quantity < orderItem.quantity) {
-        throw new Error(`Insufficient stock for: ${item.name}`);
+        throw new Error(`Insufficient stock for: ${itemDisplayName}`);
       }
 
       batch.quantity -= orderItem.quantity;
@@ -127,8 +128,10 @@ export const createSale = async (req, res) => {
         orderItem.quantity;
     }
 
-    // STEP 4: Save all items in parallel
-    await Promise.all(dbItems.map((item) => item.save({ session })));
+    // STEP 4: Save all items in parallel — validateModifiedOnly prevents
+    // triggering required-field validation on name.en/name.hi etc. since we only
+    // modified batches[].quantity, not the item's name or other required fields.
+    await Promise.all(dbItems.map((item) => item.save({ session, validateModifiedOnly: true })));
 
     // Payment validation
     const totalPaid =
