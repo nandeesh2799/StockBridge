@@ -538,7 +538,7 @@ const Inventory = () => {
     try {
       await API.delete(`/items/${deleteId}`);
       setItems((prev) => prev.filter((item) => item._id !== deleteId));
-      toast.success(t("common.itemDeleted"));
+      toast.success(t("toast.itemDeleted"));
     } catch {
       toast.error(t("common.errorDeleting"));
     } finally {
@@ -905,10 +905,10 @@ const Inventory = () => {
                     onChange={handleChange}
                     className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none"
                   >
-                    <option value="piece">{t("inventory.piece")}</option>
-                    <option value="kg">{t("inventory.kg")}</option>
-                    <option value="litre">{t("inventory.litre")}</option>
-                    <option value="box">{t("inventory.box")}</option>
+                    <option value="piece">{t("common.piece")}</option>
+                    <option value="kg">{t("common.kg")}</option>
+                    <option value="litre">{t("common.litre")}</option>
+                    <option value="box">{t("common.box")}</option>
                   </select>
                 </div>
               </div>
@@ -949,7 +949,7 @@ const Inventory = () => {
                 </label>
                 <input
                   name="hsn"
-                  placeholder={t("inventory.optional")}
+                  placeholder={t("common.optional")}
                   value={formData.hsn}
                   onChange={handleChange}
                   className="w-full p-3 bg-[#111113] border border-slate-800 rounded-xl text-white outline-none"

@@ -110,10 +110,10 @@ const StockAdjustment = () => {
     <div className="text-white space-y-6 bg-transparent min-h-screen pb-20">
       <div>
         <h1 className="text-2xl font-black tracking-tight">
-          {t("Stock Adjustment")}
+          {t("stockAdjustment.title")}
         </h1>
         <p className="text-sm text-slate-400 font-medium mt-0.5">
-          {t("Manually Adjust")}
+          {t("stockAdjustment.subtitle")}
         </p>
       </div>
 
@@ -122,22 +122,22 @@ const StockAdjustment = () => {
         <div className="panel-tech rounded-3xl p-6 sm:p-8 shadow-sm h-fit">
           <div className="flex items-center gap-2 text-indigo-400 mb-6">
             <PackageMinus size={20} />
-            <h2 className="text-lg font-bold">{t("New Adjustment")}</h2>
+            <h2 className="text-lg font-bold">{t("stockAdjustment.newAdjustment")}</h2>
           </div>
           <div className="space-y-5">
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                {t("Select Item")}
+                {t("stockAdjustment.selectItem")}
               </label>
               <select
                 value={selectedItemId}
                 onChange={(e) => setSelectedItemId(e.target.value)}
                 className="w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-indigo-500"
               >
-                <option value="">{t("Choose Item")}</option>
+                <option value="">{t("stockAdjustment.chooseItem")}</option>
                 {items.map((item) => (
                   <option key={item._id} value={item._id}>
-                    {getItemName(item)} ({t("inStock")}: {getTotalStock(item)})
+                    {getItemName(item)} ({t("stockAdjustment.inStock")}: {getTotalStock(item)})
                   </option>
                 ))}
               </select>
@@ -145,22 +145,22 @@ const StockAdjustment = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                  {t("Adjustment Type")}
+                  {t("stockAdjustment.type")}
                 </label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
                   className="w-full p-3 bg-[#09090b] border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-indigo-500"
                 >
-                  <option value="add">{t("Add Stock Option")}</option>
-                  <option value="reduce">{t("Reduce Stock Option")}</option>
-                  <option value="expired">{t("Mark Expired")}</option>
-                  <option value="damaged">{t("Mark Damaged")}</option>
+                  <option value="add">{t("stockAdjustment.addStock")}</option>
+                  <option value="reduce">{t("stockAdjustment.reduceStock")}</option>
+                  <option value="expired">{t("stockAdjustment.markExpired")}</option>
+                  <option value="damaged">{t("stockAdjustment.markDamaged")}</option>
                 </select>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                  {t("Quantity")}
+                  {t("stockAdjustment.quantity")}
                 </label>
                 <input
                   type="number"
@@ -173,7 +173,7 @@ const StockAdjustment = () => {
             </div>
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
-                {t("Reason Optional")}
+                {t("stockAdjustment.reasonOptional")}
               </label>
               <textarea
                 rows="2"
@@ -188,7 +188,7 @@ const StockAdjustment = () => {
               disabled={isSubmitting}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-600/20 active:scale-95 transition-all mt-4"
             >
-              {isSubmitting ? t("Updating Database") : t("Apply Adjustment")}
+              {isSubmitting ? t("stockAdjustment.updating") : t("stockAdjustment.apply")}
             </button>
           </div>
         </div>
@@ -196,12 +196,12 @@ const StockAdjustment = () => {
         {/* RIGHT: HISTORY */}
         <div className="panel-tech rounded-3xl p-6 sm:p-8 shadow-sm">
           <h2 className="text-lg font-bold mb-6 text-white">
-            {t("Recent Adjustments")}
+            {t("stockAdjustment.recent")}
           </h2>
           {!selectedItem ? (
             <div className="text-center text-slate-500 py-10 opacity-70">
               <PackageMinus size={40} className="mx-auto mb-2" />
-              <p className="text-sm font-bold">{t("Select Item To View")}</p>
+              <p className="text-sm font-bold">{t("stockAdjustment.selectToView")}</p>
             </div>
           ) : selectedItem.adjustments?.length > 0 ? (
             <div className="space-y-4 max-h-100 overflow-y-auto pr-2">
@@ -245,7 +245,7 @@ const StockAdjustment = () => {
             </div>
           ) : (
             <div className="text-center text-slate-500 py-10 opacity-70">
-              <p className="text-sm font-bold">{t("No Adjustments")}</p>
+              <p className="text-sm font-bold">{t("stockAdjustment.noAdjustments")}</p>
             </div>
           )}
         </div>

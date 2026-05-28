@@ -53,7 +53,7 @@ const Invoice = () => {
     shopProfile.signatoryName ||
     shopProfile.ownerName ||
     t("invoice.authorizedSignatory");
-  const designation = shopProfile.designation || t("settings.retail");
+  const designation = shopProfile.designation || t("common.retail");
   const upiId = shopProfile.upiId || "";
 
   const upiAmount = Number(sale.paymentSplit?.upi || 0);
@@ -202,7 +202,7 @@ const Invoice = () => {
                       {getItemName(item)}
                     </p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                      {t("settings.retail")}
+                      {t("common.retail")}
                     </p>
                   </td>
                   <td className="py-5 text-center font-bold text-slate-700">

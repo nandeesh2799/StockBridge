@@ -44,7 +44,8 @@
     "next": "Next",
     "finish": "Finish",
     "offline": "Offline",
-    "online": "Online"
+    "online": "Online",
+    "copied": "Copied to clipboard"
   },
   "dashboard": {
     "todaysRevenue": "Today's Revenue",
@@ -125,6 +126,7 @@
   },
   "billing": {
     "pos": "Point of Sale",
+    "invoice": "Invoice",
     "pendingSync": "Sales Pending Sync",
     "syncInfo": "They will be uploaded automatically when you're back online.",
     "cart": "Cart",
@@ -285,7 +287,28 @@
     "gstTax": "Gst Tax",
     "pendingCredit": "Pending Credit",
     "noSalesFound": "No Sales Found",
-    "paymentSplitTitle": "Payment Method Split"
+    "paymentSplitTitle": "Payment Method Split",
+    "performanceInsights": "Performance Insights"
+  },
+  "stockAdjustment": {
+    "title": "Stock Adjustment",
+    "subtitle": "Manually adjust product stock levels",
+    "newAdjustment": "New Adjustment",
+    "selectItem": "Select Item",
+    "chooseItem": "Choose Item",
+    "inStock": "In Stock",
+    "type": "Adjustment Type",
+    "addStock": "Add Stock",
+    "reduceStock": "Reduce Stock",
+    "markExpired": "Mark Expired",
+    "markDamaged": "Mark Damaged",
+    "quantity": "Quantity",
+    "reasonOptional": "Reason (Optional)",
+    "updating": "Updating...",
+    "apply": "Apply Adjustment",
+    "recent": "Recent Adjustments",
+    "selectToView": "Select an item to view history",
+    "noAdjustments": "No adjustments recorded for this item"
   },
   "settings": {
     "profile": "Shop Profile",

@@ -122,10 +122,10 @@ const Reports = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black tracking-tight">
-              {t("  Retail Flow Analytics")}
+              {t("reports.title")}
             </h1>
             <p className="text-sm text-slate-400 font-medium">
-              {t("Performance Insights")}
+              {t("reports.performanceInsights")}
             </p>
           </div>
         </div>
@@ -162,28 +162,28 @@ const Reports = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <Card
-          title={t("Revenue")}
+          title={t("reports.revenue")}
           value={formatCurrency(stats.revenue)}
           icon={IndianRupee}
           color="text-indigo-400"
           bg="bg-indigo-500/10"
         />
         <Card
-          title={t("Net Profit")}
+          title={t("reports.netProfit")}
           value={formatCurrency(stats.profit)}
           icon={TrendingUp}
           color="text-emerald-400"
           bg="bg-emerald-500/10"
         />
         <Card
-          title={t("Gst Tax")}
+          title={t("reports.gstTax")}
           value={formatCurrency(stats.gst)}
           icon={Receipt}
           color="text-amber-400"
           bg="bg-amber-500/10"
         />
         <Card
-          title={t("Pending Credit")}
+          title={t("reports.pendingCredit")}
           value={formatCurrency(stats.credit)}
           icon={CreditCard}
           color="text-rose-400"
@@ -193,7 +193,7 @@ const Reports = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 min-w-0">
-          <ChartBox title={t("Revenue Vs Profit")}>
+          <ChartBox title={t("reports.revenueVsProfit")}>
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={350}>
                 <AreaChart data={chartData}>
@@ -249,11 +249,11 @@ const Reports = () => {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState label={t("noSalesFound")} />
+              <EmptyState label={t("reports.noSalesFound")} />
             )}
           </ChartBox>
         </div>
-        <ChartBox title={t("Payment Split Title")}>
+        <ChartBox title={t("reports.paymentMethodSplit")}>
           {paymentData.some((p) => p.value > 0) ? (
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={paymentData}>
@@ -289,7 +289,7 @@ const Reports = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyState label={t("noSalesFound")} />
+            <EmptyState label={t("reports.noSalesFound")} />
           )}
         </ChartBox>
       </div>

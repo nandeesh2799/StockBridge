@@ -44,7 +44,8 @@
     "next": "आगे",
     "finish": "समाप्त",
     "offline": "ऑफ़लाइन",
-    "online": "ऑनलाइन"
+    "online": "ऑनलाइन",
+    "copied": "क्लिपबोर्ड पर कॉपी किया गया"
   },
   "dashboard": {
     "todaysRevenue": "आज की कुल बिक्री",
@@ -125,6 +126,7 @@
   },
   "billing": {
     "pos": "बिल्लिंग (POS)",
+    "invoice": "इनवॉइस",
     "pendingSync": "बिक्री सिंक होना बाकी है",
     "syncInfo": "आपके ऑनलाइन वापस आने पर वे स्वचालित रूप से अपलोड हो जाएंगे।",
     "cart": "कार्ट",
@@ -285,7 +287,28 @@
     "gstTax": "GST टैक्स",
     "pendingCredit": "लंबित उधार",
     "noSalesFound": "कोई बिक्री नहीं मिली",
-    "paymentSplitTitle": "भुगतान विधि विभाजन"
+    "paymentSplitTitle": "भुगतान विधि विभाजन",
+    "performanceInsights": "प्रदर्शन अंतर्दृष्टि"
+  },
+  "stockAdjustment": {
+    "title": "स्टॉक समायोजन (Stock Adjustment)",
+    "subtitle": "उत्पाद के स्टॉक स्तर को मैन्युअल रूप से समायोजित करें",
+    "newAdjustment": "नया समायोजन",
+    "selectItem": "आइटम चुनें",
+    "chooseItem": "आइटम का चयन करें",
+    "inStock": "स्टॉक में",
+    "type": "समायोजन प्रकार",
+    "addStock": "स्टॉक जोड़ें",
+    "reduceStock": "स्टॉक कम करें",
+    "markExpired": "समाप्त (Expired) चिह्नित करें",
+    "markDamaged": "क्षतिग्रस्त (Damaged) चिह्नित करें",
+    "quantity": "मात्रा",
+    "reasonOptional": "कारण (वैकल्पिक)",
+    "updating": "अपडेट हो रहा है...",
+    "apply": "समायोजन लागू करें",
+    "recent": "हाल के समायोजन",
+    "selectToView": "इतिहास देखने के लिए एक आइटम चुनें",
+    "noAdjustments": "इस आइटम के लिए कोई समायोजन दर्ज नहीं है"
   },
   "settings": {
     "profile": "शॉप प्रोफाइल",

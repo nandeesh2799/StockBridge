@@ -811,7 +811,7 @@ const POS = () => {
             );
             if (found) customerId = found._id;
           } else {
-            toast.error(t("validation.error"));
+            toast.error(t("common.error"));
             setIsSubmitting(false);
             return;
           }
