@@ -48,7 +48,7 @@ const createPurchaseExpense = async ({
     description: `Stock purchase: ${itemName} x ${safeQuantity} @ ${safePurchasePrice}`,
     date: date ? new Date(date) : Date.now(),
     paymentMethod: "Cash",
-    addedBy: req.staff?._id || req.shop._id,
+    addedBy: req.staff?._id || req.shop.id,
     addedByModel: req.staff ? "Staff" : "Shop",
   });
 };
@@ -216,30 +216,40 @@ export const deleteItem = async (req, res) => {
 // @desc    Get inventory stats
 // @route   GET /api/v1/items/stats
 export const getInventoryStats = async (req, res) => {
-  const stats = await Item.aggregate([
-    { $match: { shop: new mongoose.Types.ObjectId(req.shop.id) } },
-    {
-      $project: {
-        totalQty: { $sum: "$batches.quantity" },
-        alertQuantity: 1,
-        isOutOfStock: {
-          $cond: [{ $eq: [{ $sum: "$batches.quantity" }, 0] }, 1, 0],
+  try {
+    const stats = await Item.aggregate([
+      { $match: { shop: new mongoose.Types.ObjectId(req.shop.id) } },
+      {
+        $project: {
+          totalQty: { $sum: "$batches.quantity" },
+          alertQuantity: 1,
+          isOutOfStock: {
+            $cond: [{ $eq: [{ $sum: "$batches.quantity" }, 0] }, 1, 0],
+          },
         },
       },
-    },
-    {
-      $group: {
-        _id: null,
-        totalItems: { $sum: 1 },
-        lowStockCount: {
-          $sum: { $cond: [{ $lte: ["$totalQty", "$alertQuantity"] }, 1, 0] },
+      {
+        $group: {
+          _id: null,
+          totalItems: { $sum: 1 },
+          lowStockCount: {
+            $sum: { $cond: [{ $lte: ["$totalQty", "$alertQuantity"] }, 1, 0] },
+          },
+          outOfStockCount: { $sum: "$isOutOfStock" },
         },
-        outOfStockCount: { $sum: "$isOutOfStock" },
       },
-    },
-  ]);
+    ]);
 
-  res.status(200).json({ success: true, stats: stats[0] });
+    const fallbackStats = stats[0] || {
+      totalItems: 0,
+      lowStockCount: 0,
+      outOfStockCount: 0,
+    };
+
+    res.status(200).json({ success: true, stats: fallbackStats });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // @desc    Resolve product info from public barcode databases (Open*Facts, UPCitemdb, …)

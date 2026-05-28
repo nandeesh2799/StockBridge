@@ -20,7 +20,7 @@ export const addExpense = async (req, res) => {
       date: date ? new Date(date) : Date.now(),
       paymentMethod: paymentMethod || "Cash",
       receipt: receipt || null,
-      addedBy: req.staff?._id || req.shop._id,
+      addedBy: req.staff?._id || req.shop.id,
       addedByModel: req.staff ? "Staff" : "Shop",
     });
 

@@ -106,11 +106,13 @@ const getShopSnapshot = async (shopId) => {
   const totalOutstandingCredit = customersWithCredit.reduce((sum, c) => sum + c.totalCredit, 0);
 
   // --- Payment method breakdown (30d) ---
-  const paymentMethods = {};
+  const paymentMethods = { cash: 0, upi: 0, credit: 0 };
   recentSales.forEach((sale) => {
-    sale.payments?.forEach((p) => {
-      paymentMethods[p.method] = (paymentMethods[p.method] || 0) + Number(p.amount || 0);
-    });
+    if (sale.paymentSplit) {
+      paymentMethods.cash += Number(sale.paymentSplit.cash || 0);
+      paymentMethods.upi += Number(sale.paymentSplit.upi || 0);
+      paymentMethods.credit += Number(sale.paymentSplit.credit || 0);
+    }
   });
 
   const snapshot = {

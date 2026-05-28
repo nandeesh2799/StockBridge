@@ -41,6 +41,15 @@ const Suppliers = () => {
   const formatCurrency = (amount = 0) =>
     `₹${new Intl.NumberFormat(i18n.language === 'en' ? 'en-IN' : i18n.language).format(Number(amount) || 0)}`;
 
+  const getItemName = (item) => {
+    if (!item) return "";
+    const currentLang = i18n.language || "en";
+    if (typeof item.name === "object") {
+      return item.name[currentLang] || item.name.en || "";
+    }
+    return item.name || "";
+  };
+
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -275,7 +284,7 @@ const Suppliers = () => {
       if (field === "itemId" && value) {
         const found = items.find((i) => i._id === value);
         if (found) {
-          updated[idx].name = found.name;
+          updated[idx].name = getItemName(found);
           updated[idx].unitCost = found.batches?.[0]?.purchasePrice || "";
         }
       }
@@ -694,7 +703,7 @@ const Suppliers = () => {
                       <option value="">Select from inventory (optional)</option>
                       {items.map((i) => (
                         <option key={i._id} value={i._id}>
-                          {i.name}
+                          {getItemName(i)}
                         </option>
                       ))}
                     </select>

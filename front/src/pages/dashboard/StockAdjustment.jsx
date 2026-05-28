@@ -24,6 +24,15 @@ const StockAdjustment = () => {
   const getTotalStock = (item) =>
     item?.batches?.reduce((sum, b) => sum + (b.quantity || 0), 0) || 0;
 
+  const getItemName = (item) => {
+    if (!item) return "";
+    const currentLang = i18n.language || "en";
+    if (typeof item.name === "object") {
+      return item.name[currentLang] || item.name.en || "";
+    }
+    return item.name || "";
+  };
+
   const handleAdjustment = async () => {
     if (!selectedItemId || !quantity || quantity <= 0) {
       toast.error("Please select item and valid quantity");
@@ -128,7 +137,7 @@ const StockAdjustment = () => {
                 <option value="">{t("Choose Item")}</option>
                 {items.map((item) => (
                   <option key={item._id} value={item._id}>
-                    {item.name} ({t("inStock")}: {getTotalStock(item)})
+                    {getItemName(item)} ({t("inStock")}: {getTotalStock(item)})
                   </option>
                 ))}
               </select>

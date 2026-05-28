@@ -23,7 +23,18 @@ export const startReminderCron = () => {
 
       for (const customer of customersDue) {
         const shop = customer.shop;
-        if (!shop || !shop.upiId) continue;
+        if (!shop || !shop.upiId) {
+          // If shop is missing or has no upiId, clear nextReminderDate to prevent perpetual loops
+          bulkUpdates.push({
+            updateOne: {
+              filter: { _id: customer._id },
+              update: {
+                $set: { nextReminderDate: null },
+              },
+            },
+          });
+          continue;
+        }
 
         const cleanPhone = customer.phone.replace(/\D/g, "").slice(-10);
         const upiLink = `upi://pay?pa=${shop.upiId}&pn=${shop.shopName}&am=${customer.totalCredit}&cu=INR`;

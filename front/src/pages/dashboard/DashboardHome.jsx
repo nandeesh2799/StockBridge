@@ -87,6 +87,15 @@ const DashboardHome = () => {
   const navigate = useNavigate();
   const { items, sales, customers } = useOutletContext();
 
+  const getItemName = (item) => {
+    if (!item) return "";
+    const currentLang = i18n.language || "en";
+    if (typeof item.name === "object") {
+      return item.name[currentLang] || item.name.en || "";
+    }
+    return item.name || "";
+  };
+
   const [dashStats, setDashStats] = useState(null);
   const [aiInsight, setAiInsight] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -527,7 +536,7 @@ ${JSON.stringify(summary, null, 2)}`;
                   className="flex items-center justify-between bg-[#111113] px-4 py-3 rounded-xl border border-slate-800"
                 >
                   <p className="text-sm font-bold text-white truncate">
-                    {item.name}
+                    {getItemName(item)}
                   </p>
                   <span className="text-xs font-black text-amber-400 ml-2 shrink-0">
                     {qty} {t("dashboard.left")}

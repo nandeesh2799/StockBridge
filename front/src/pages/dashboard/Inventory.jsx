@@ -782,7 +782,7 @@ const Inventory = () => {
               <div>
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-bold text-lg text-white truncate pr-2">
-                    {item.name}
+                    {getItemName(item)}
                   </h3>
                   <p className="font-black text-lg text-indigo-400">₹{price}</p>
                 </div>
@@ -1074,7 +1074,7 @@ const Inventory = () => {
                     className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-800/30"
                   >
                     <div>
-                      <p className="text-sm font-bold text-white">{item.name}</p>
+                      <p className="text-sm font-bold text-white">{getItemName(item)}</p>
                       <p className="text-xs text-slate-500">
                         Stock: {getTotalStock(item)} {item.unit}
                       </p>

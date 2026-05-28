@@ -158,8 +158,8 @@ export const recordPurchase = async (req, res) => {
       item.supplier = supplier._id;
     }
 
-    // Save all items in parallel
-    await Promise.all(dbItems.map((item) => item.save()));
+    // Save all items in parallel with validateModifiedOnly to bypass validation on unmodified fields (e.g. name.en)
+    await Promise.all(dbItems.map((item) => item.save({ validateModifiedOnly: true })));
 
     // Log purchase on supplier
     supplier.purchaseHistory.push({

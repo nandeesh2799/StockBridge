@@ -115,16 +115,40 @@ export const createSale = async (req, res) => {
       const item = itemMap[orderItem.itemId];
       if (!item) throw new Error(`Item not found`);
 
-      const batch = item.batches.id(orderItem.batchId);
+      const totalStock = item.batches.reduce((sum, b) => sum + (b.quantity || 0), 0);
       const itemDisplayName = typeof item.name === "object" ? (item.name.en || item.name.hi || item.name.kn || "Item") : (item.name || "Item");
-      if (!batch || batch.quantity < orderItem.quantity) {
+      if (totalStock < orderItem.quantity) {
         throw new Error(`Insufficient stock for: ${itemDisplayName}`);
       }
 
-      batch.quantity -= orderItem.quantity;
+      let remainingToDeduct = orderItem.quantity;
+
+      // 1. Try to deduct from the selected batch first
+      const selectedBatch = item.batches.id(orderItem.batchId);
+      if (selectedBatch && selectedBatch.quantity > 0) {
+        const deduct = Math.min(selectedBatch.quantity, remainingToDeduct);
+        selectedBatch.quantity -= deduct;
+        remainingToDeduct -= deduct;
+      }
+
+      // 2. If still remaining, deduct from other batches (FIFO)
+      if (remainingToDeduct > 0) {
+        const otherBatches = item.batches.filter((b) => b._id.toString() !== orderItem.batchId && b.quantity > 0);
+        for (const b of otherBatches) {
+          if (remainingToDeduct <= 0) break;
+          const deduct = Math.min(b.quantity, remainingToDeduct);
+          b.quantity -= deduct;
+          remainingToDeduct -= deduct;
+        }
+      }
+
+      if (remainingToDeduct > 0) {
+        throw new Error(`Insufficient stock for: ${itemDisplayName}`);
+      }
+
       totalAmount += orderItem.sellingPrice * orderItem.quantity;
       calculatedPurchasePrice +=
-        (orderItem.purchasePrice || batch.purchasePrice || 0) *
+        (orderItem.purchasePrice || (selectedBatch || item.batches[0] || {}).purchasePrice || 0) *
         orderItem.quantity;
     }
 

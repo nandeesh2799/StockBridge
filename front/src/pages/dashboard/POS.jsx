@@ -132,14 +132,15 @@ const POS = () => {
         ),
       );
     } else {
+      const availableBatch = product.batches?.find((b) => b.quantity > 0) || product.batches?.[0] || {};
       setCart((prev) => [
         ...prev,
         {
           itemId: product._id,
-          batchId: product.batches?.[0]?._id,
+          batchId: availableBatch._id,
           name: prodName,
-          sellingPrice: product.batches?.[0]?.sellingPrice || 0,
-          purchasePrice: product.batches?.[0]?.purchasePrice || 0,
+          sellingPrice: availableBatch.sellingPrice || 0,
+          purchasePrice: availableBatch.purchasePrice || 0,
           quantity: 1,
         },
       ]);
@@ -874,16 +875,29 @@ const POS = () => {
       prev.map((item) => {
         const cartItem = cart.find((c) => c.itemId === item._id);
         if (!cartItem) return item;
+
+        let remaining = cartItem.quantity;
+        let updatedBatches = item.batches.map((b) => {
+          if (b._id === cartItem.batchId) {
+            const deduct = Math.min(b.quantity, remaining);
+            remaining -= deduct;
+            return { ...b, quantity: Math.max(0, b.quantity - deduct) };
+          }
+          return b;
+        });
+
+        if (remaining > 0) {
+          updatedBatches = updatedBatches.map((b) => {
+            if (remaining <= 0 || b.quantity <= 0) return b;
+            const deduct = Math.min(b.quantity, remaining);
+            remaining -= deduct;
+            return { ...b, quantity: Math.max(0, b.quantity - deduct) };
+          });
+        }
+
         return {
           ...item,
-          batches: item.batches.map((b, idx) =>
-            idx === 0
-              ? {
-                  ...b,
-                  quantity: Math.max(0, b.quantity - cartItem.quantity),
-                }
-              : b,
-          ),
+          batches: updatedBatches,
         };
       }),
     );
