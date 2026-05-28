@@ -787,7 +787,7 @@ const Inventory = () => {
                   <p className="font-black text-lg text-indigo-400">₹{price}</p>
                 </div>
                 <p className="text-xs text-slate-400 font-medium mb-3">
-                  GST: {item.taxPercent}% | HSN: {item.hsn || "-"}
+                  {t("inventory.barcode")}: {item.barcode || "-"}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mb-4">
                   <span
