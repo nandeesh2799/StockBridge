@@ -467,8 +467,9 @@ const Inventory = () => {
   const openEditDrawer = (item) => {
     setEditingItemId(item._id);
     const mainBatch = item.batches?.[0] || {};
+    const nameString = typeof item.name === "object" ? (item.name[currentLang] || item.name.en || "") : (item.name || "");
     setFormData({
-      name: item.name,
+      name: nameString,
       barcode: item.barcode || "",
       sellingPrice: mainBatch.sellingPrice || "",
       unitType: item.unit || "piece",
