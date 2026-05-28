@@ -71,7 +71,7 @@ const App = () => {
               // Remove offline-specific fields before syncing
               // eslint-disable-next-line no-unused-vars
               const { _id, offline, invoiceNumber, createdAt, ...payload } = sale;
-              await API.post("/sales", payload);
+              await API.post("/sales", { ...payload, isOffline: true });
               removePendingSale(sale._id);
               syncedCount++;
             } catch (err) {

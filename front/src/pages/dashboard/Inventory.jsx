@@ -429,7 +429,7 @@ const Inventory = () => {
   };
 
   let filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase()),
+    getItemName(item).toLowerCase().includes(search.toLowerCase()),
   );
   if (sortBy === "low_stock")
     filteredItems.sort((a, b) => getTotalStock(a) - getTotalStock(b));

@@ -64,7 +64,7 @@ export const createSale = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { customer, items = [], paymentSplit = {}, totalPurchasePrice } = req.body;
+    const { customer, items = [], paymentSplit = {}, totalPurchasePrice, isOffline } = req.body;
     const normalizedPaymentSplit = {
       cash: Number(paymentSplit.cash || 0),
       upi: Number(paymentSplit.upi || 0),
@@ -117,7 +117,7 @@ export const createSale = async (req, res) => {
 
       const totalStock = item.batches.reduce((sum, b) => sum + (b.quantity || 0), 0);
       const itemDisplayName = typeof item.name === "object" ? (item.name.en || item.name.hi || item.name.kn || "Item") : (item.name || "Item");
-      if (totalStock < orderItem.quantity) {
+      if (totalStock < orderItem.quantity && !isOffline) {
         throw new Error(`Insufficient stock for: ${itemDisplayName}`);
       }
 
@@ -142,7 +142,7 @@ export const createSale = async (req, res) => {
         }
       }
 
-      if (remainingToDeduct > 0) {
+      if (remainingToDeduct > 0 && !isOffline) {
         throw new Error(`Insufficient stock for: ${itemDisplayName}`);
       }
 
