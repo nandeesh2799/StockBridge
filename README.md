@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="ChatGPT Image May 5, 2026, 11_02_31 PM.png" alt="StockBridge Logo" width="120" />
-
 # StockBridge 🚀
 
 **A modern, full-stack POS & Inventory Management System built for Indian retail businesses.**
@@ -12,7 +10,7 @@
 [![Groq](https://img.shields.io/badge/AI-Groq%20LLaMA%203.3-F55036?logo=meta)](https://console.groq.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Features](#-features) · [Tech Stack](#️-tech-stack) · [Getting Started](#-getting-started) · [API Reference](#-api-reference) · [Environment Variables](#-environment-variables) · [Screenshots](#-screenshots)
+[Features](#-features) · [Tech Stack](#️-tech-stack) · [Getting Started](#-getting-started) · [API Reference](#-api-reference) · [Environment Variables](#-environment-variables)
 
 </div>
 
@@ -303,15 +301,6 @@ StockBridge supports **3 languages** across the entire app:
 | Kannada | `kn` | Full UI + AI responses (ಕನ್ನಡ) |
 
 Item names, categories, and AI chat responses all adapt to the shop's configured language.
-
----
-
-## 📸 Screenshots
-
-<div align="center">
-<img src="screenshots/pos2.png" alt="POS Screen" width="45%" />
-<img src="SB architecture.png" alt="System Architecture" width="45%" />
-</div>
 
 ---
 
